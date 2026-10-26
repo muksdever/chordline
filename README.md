@@ -13,7 +13,7 @@ project goes to them. Like Vencord, Chordline is licensed under the
 You need [Git](https://git-scm.com/), [Node.js](https://nodejs.org/) 22 or newer, and pnpm (`npm install -g pnpm`).
 
 ```sh
-git clone <this repo's URL> chordline
+git clone https://github.com/muksdever/chordline.git
 cd chordline
 pnpm install --frozen-lockfile
 pnpm build
