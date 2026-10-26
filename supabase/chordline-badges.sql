@@ -19,6 +19,10 @@ create table if not exists public.badges (
 alter table public.badges drop constraint if exists badges_name_check;
 alter table public.badges add constraint badges_name_check
     check (char_length(name) between 1 and 64);
+-- 1 = Common ... 5 = Legendary, same scale as Discord's own badges
+alter table public.badges add column if not exists rarity smallint not null default 1;
+alter table public.badges drop constraint if exists badges_rarity_check;
+alter table public.badges add constraint badges_rarity_check check (rarity between 1 and 5);
 alter table public.badges drop constraint if exists badges_icon_url_check;
 alter table public.badges add constraint badges_icon_url_check
     check ((icon_url ~ '^https://' or icon_url ~ '^data:image/(png|jpeg|gif|webp);base64,') and char_length(icon_url) <= 200000);
@@ -95,7 +99,8 @@ begin
 end;
 $$;
 
-create or replace function public.admin_create_badge(admin_key text, badge_name text, badge_icon text)
+drop function if exists public.admin_create_badge(text, text, text);
+create or replace function public.admin_create_badge(admin_key text, badge_name text, badge_icon text, badge_rarity smallint default 1)
 returns uuid
 language plpgsql
 security definer
@@ -105,12 +110,13 @@ declare
     new_id uuid;
 begin
     perform public.check_badge_admin_key(admin_key);
-    insert into public.badges (name, icon_url) values (badge_name, badge_icon) returning id into new_id;
+    insert into public.badges (name, icon_url, rarity) values (badge_name, badge_icon, badge_rarity) returning id into new_id;
     return new_id;
 end;
 $$;
 
-create or replace function public.admin_update_badge(admin_key text, badge_id uuid, badge_name text, badge_icon text)
+drop function if exists public.admin_update_badge(text, uuid, text, text);
+create or replace function public.admin_update_badge(admin_key text, badge_id uuid, badge_name text, badge_icon text, badge_rarity smallint default 1)
 returns void
 language plpgsql
 security definer
@@ -118,7 +124,7 @@ set search_path = ''
 as $$
 begin
     perform public.check_badge_admin_key(admin_key);
-    update public.badges set name = badge_name, icon_url = badge_icon where id = badge_id;
+    update public.badges set name = badge_name, icon_url = badge_icon, rarity = badge_rarity where id = badge_id;
 end;
 $$;
 
@@ -179,8 +185,8 @@ grant execute on function public.save_badge_settings(text, uuid[], uuid[]) to an
 
 grant execute on function
     public.admin_check(text),
-    public.admin_create_badge(text, text, text),
-    public.admin_update_badge(text, uuid, text, text),
+    public.admin_create_badge(text, text, text, smallint),
+    public.admin_update_badge(text, uuid, text, text, smallint),
     public.admin_delete_badge(text, uuid),
     public.admin_give_badge(text, uuid, text),
     public.admin_take_badge(text, uuid, text)

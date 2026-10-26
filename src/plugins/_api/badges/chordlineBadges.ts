@@ -27,8 +27,18 @@ export interface ChordlineBadge {
     id: string;
     name: string;
     icon_url: string;
+    /** 1 (Common) to 5 (Legendary), same scale as Discord's badges */
+    rarity: number;
     created_at: string;
 }
+
+export const BADGE_RARITIES = [
+    { value: 1, label: "Common" },
+    { value: 2, label: "Uncommon" },
+    { value: 3, label: "Rare" },
+    { value: 4, label: "Epic" },
+    { value: 5, label: "Legendary" },
+] as const;
 
 export interface BadgeHolder {
     badge_id: string;
@@ -92,7 +102,7 @@ export async function loadChordlineBadges() {
 
     try {
         [badges, holders] = await Promise.all([
-            request<ChordlineBadge[]>("/rest/v1/badges?select=id,name,icon_url,created_at&order=created_at.asc"),
+            request<ChordlineBadge[]>("/rest/v1/badges?select=id,name,icon_url,rarity,created_at&order=created_at.asc"),
             request<BadgeHolder[]>("/rest/v1/badge_holders?select=badge_id,user_id,hidden,position,created_at&order=created_at.asc")
         ]);
     } catch (e) {
@@ -167,7 +177,7 @@ export async function setAdminKey(key: string) {
     await DataStore.set(ADMIN_KEY_STORE_KEY, key);
 }
 
-async function rpc<T = void>(fn: string, args: Record<string, string>) {
+async function rpc<T = void>(fn: string, args: Record<string, string | number>) {
     const key = await DataStore.get<string>(ADMIN_KEY_STORE_KEY);
     if (!key) throw new Error("This computer doesn't have the Chordline admin key yet.");
 
@@ -179,11 +189,11 @@ async function rpc<T = void>(fn: string, args: Record<string, string>) {
     return result;
 }
 
-export const createBadge = (name: string, iconUrl: string) =>
-    rpc<string>("admin_create_badge", { badge_name: name, badge_icon: iconUrl });
+export const createBadge = (name: string, iconUrl: string, rarity: number) =>
+    rpc<string>("admin_create_badge", { badge_name: name, badge_icon: iconUrl, badge_rarity: rarity });
 
-export const updateBadge = (id: string, name: string, iconUrl: string) =>
-    rpc("admin_update_badge", { badge_id: id, badge_name: name, badge_icon: iconUrl });
+export const updateBadge = (id: string, name: string, iconUrl: string, rarity: number) =>
+    rpc("admin_update_badge", { badge_id: id, badge_name: name, badge_icon: iconUrl, badge_rarity: rarity });
 
 export const deleteBadge = (badge: ChordlineBadge) =>
     rpc("admin_delete_badge", { badge_id: badge.id });

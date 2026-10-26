@@ -20,6 +20,7 @@ import { onceDefined } from "@shared/onceDefined";
 import electron, { app, BrowserWindowConstructorOptions, Menu } from "electron";
 import { dirname, join } from "path";
 
+import { applyChordlineSplash, isDiscordSplash, SPLASH_BACKGROUND } from "./chordlineSplash";
 import { RendererSettings } from "./settings";
 import { IS_VANILLA } from "./utils/constants";
 
@@ -69,6 +70,13 @@ if (!IS_VANILLA) {
 
     class BrowserWindow extends electron.BrowserWindow {
         constructor(options: BrowserWindowConstructorOptions) {
+            if (isDiscordSplash(options?.webPreferences?.preload)) {
+                options.backgroundColor = SPLASH_BACKGROUND;
+                super(options);
+                applyChordlineSplash(this);
+                return;
+            }
+
             if (!options?.webPreferences?.preload || !options.title) {
                 super(options);
                 return;

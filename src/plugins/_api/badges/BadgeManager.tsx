@@ -15,7 +15,7 @@ import { useAwaiter } from "@utils/react";
 import { RenderModalProps, User } from "@vencord/discord-types";
 import { ConfirmModal, Forms, Modal, openModal, RelationshipStore, showToast, TextInput, useEffect, useMemo, useReducer, useRef, UserStore, UserUtils, useState } from "@webpack/common";
 
-import { ChordlineBadge, createBadge, deleteBadge, getAllChordlineBadges, getBadgeHolders, giveBadge, hasAdminKey, imageToBadgeIcon, isBadgeBackendConfigured, loadChordlineBadges, onChordlineBadgesChange, setAdminKey, takeBadge, updateBadge } from "./chordlineBadges";
+import { BADGE_RARITIES, ChordlineBadge, createBadge, deleteBadge, getAllChordlineBadges, getBadgeHolders, giveBadge, hasAdminKey, imageToBadgeIcon, isBadgeBackendConfigured, loadChordlineBadges, onChordlineBadgesChange, setAdminKey, takeBadge, updateBadge } from "./chordlineBadges";
 
 const cl = classNameFactory("vc-chordline-badges-");
 
@@ -87,11 +87,12 @@ function KeySetup({ onDone }: { onDone(): void; }) {
 function BadgeForm({ initial, submitText, onSubmit, onCancel }: {
     initial?: ChordlineBadge;
     submitText: string;
-    onSubmit(name: string, iconUrl: string): Promise<boolean>;
+    onSubmit(name: string, iconUrl: string, rarity: number): Promise<boolean>;
     onCancel?(): void;
 }) {
     const [name, setName] = useState(initial?.name ?? "");
     const [iconUrl, setIconUrl] = useState(initial?.icon_url ?? "");
+    const [rarity, setRarity] = useState(initial?.rarity ?? 1);
     const [busy, setBusy] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
 
@@ -106,11 +107,12 @@ function BadgeForm({ initial, submitText, onSubmit, onCancel }: {
         if (!iconUrl) return showToast({ text: "Pick an image for the badge", variant: "critical", position: "bottom" });
 
         setBusy(true);
-        const ok = await onSubmit(name.trim(), iconUrl);
+        const ok = await onSubmit(name.trim(), iconUrl, rarity);
         setBusy(false);
         if (ok && !initial) {
             setName("");
             setIconUrl("");
+            setRarity(1);
         }
     }
 
@@ -138,6 +140,19 @@ function BadgeForm({ initial, submitText, onSubmit, onCancel }: {
                         placeholder={isEmbedded ? "Using the image you picked" : "...or paste an https:// image link"}
                         className={cl("grow")}
                     />
+                </div>
+
+                <Forms.FormTitle tag="h5" className={Margins.top8}>Rarity</Forms.FormTitle>
+                <div className={cl("rarities")}>
+                    {BADGE_RARITIES.map(r => (
+                        <button
+                            key={r.value}
+                            className={classes(cl("rarity"), cl(`rarity-${r.value}`), rarity === r.value && cl("rarity-selected"))}
+                            onClick={() => setRarity(r.value)}
+                        >
+                            {r.label}
+                        </button>
+                    ))}
                 </div>
 
                 <div className={classes(cl("row"), Margins.top8)}>
@@ -247,8 +262,8 @@ function BadgeRow({ badge }: { badge: ChordlineBadge; }) {
                     initial={badge}
                     submitText="Save"
                     onCancel={() => setMode("closed")}
-                    onSubmit={async (name, iconUrl) => {
-                        const ok = await runWithToast(() => updateBadge(badge.id, name, iconUrl), "Badge saved");
+                    onSubmit={async (name, iconUrl, rarity) => {
+                        const ok = await runWithToast(() => updateBadge(badge.id, name, iconUrl, rarity), "Badge saved");
                         if (ok) setMode("closed");
                         return ok;
                     }}
@@ -263,7 +278,12 @@ function BadgeRow({ badge }: { badge: ChordlineBadge; }) {
                 <img className={cl("icon")} src={badge.icon_url} alt="" />
                 <div className={cl("grow")}>
                     <div className={cl("name")}>{badge.name}</div>
-                    <div className={cl("count")}>{holderCount === 1 ? "1 person" : `${holderCount} people`}</div>
+                    <div className={cl("count")}>
+                        <span className={classes(cl("rarity-text"), cl(`rarity-${badge.rarity ?? 1}`))}>
+                            {BADGE_RARITIES.find(r => r.value === badge.rarity)?.label ?? "Common"}
+                        </span>
+                        {" · "}{holderCount === 1 ? "1 person" : `${holderCount} people`}
+                    </div>
                 </div>
                 <Button variant={mode === "people" ? "primary" : "secondary"} size="small" onClick={() => setMode(mode === "people" ? "closed" : "people")}>
                     Give / People
@@ -285,7 +305,7 @@ function AdminView() {
             <Forms.FormTitle tag="h5">Create a Badge</Forms.FormTitle>
             <BadgeForm
                 submitText="Create Badge"
-                onSubmit={(name, iconUrl) => runWithToast(() => createBadge(name, iconUrl), `Created ${name}`)}
+                onSubmit={(name, iconUrl, rarity) => runWithToast(() => createBadge(name, iconUrl, rarity), `Created ${name}`)}
             />
 
             <Forms.FormTitle tag="h5" className={Margins.top20}>Your Badges ({badges.length})</Forms.FormTitle>

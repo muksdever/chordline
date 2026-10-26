@@ -111,3 +111,42 @@
 .vc-chordline-badges-user-placeholder {
     background: var(--background-modifier-accent, #4e5058);
 }
+
+.vc-chordline-badges-rarities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.vc-chordline-badges-rarity {
+    padding: 4px 10px;
+    border: 1px solid var(--rarity-color);
+    border-radius: 12px;
+    background: none;
+    color: var(--rarity-color);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.vc-chordline-badges-rarity:hover {
+    opacity: 1;
+}
+
+.vc-chordline-badges-rarity-selected {
+    background: var(--rarity-color);
+    color: #111214;
+    opacity: 1;
+}
+
+.vc-chordline-badges-rarity-text {
+    color: var(--rarity-color);
+    font-weight: 600;
+}
+
+.vc-chordline-badges-rarity-1 { --rarity-color: #b5bac1; }
+.vc-chordline-badges-rarity-2 { --rarity-color: #57f287; }
+.vc-chordline-badges-rarity-3 { --rarity-color: #5865f2; }
+.vc-chordline-badges-rarity-4 { --rarity-color: #c061ff; }
+.vc-chordline-badges-rarity-5 { --rarity-color: #fbb848; }

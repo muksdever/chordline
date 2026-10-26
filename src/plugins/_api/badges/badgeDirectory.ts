@@ -40,7 +40,7 @@ function toCatalogEntry(userId: string, held: HeldBadge) {
         name: badge.name,
         description: "A Chordline badge",
         info_label: "Chordline",
-        rarity: 1,
+        rarity: badge.rarity ?? 1,
         simple_icon_url: badge.icon_url,
         simple_icon_raster_url: badge.icon_url,
         complex_icon_static_url: badge.icon_url,
