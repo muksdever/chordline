@@ -138,3 +138,77 @@
     overflow-wrap: anywhere;
     user-select: all;
 }
+
+.vc-chordline-staff-proof-drop {
+    width: 100%;
+    padding: 22px 12px;
+    border: 2px dashed var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 8px;
+    background: var(--background-base-lowest, var(--background-tertiary));
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.vc-chordline-staff-proof-drop:hover {
+    border-color: var(--text-muted);
+    color: var(--text-default, var(--text-normal));
+}
+
+.vc-chordline-staff-proof-drop kbd {
+    padding: 0 5px;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.vc-chordline-staff-proof-preview {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.vc-chordline-staff-proof-preview img,
+.vc-chordline-staff-proof-thumb img {
+    display: block;
+    max-width: 100%;
+    max-height: 220px;
+    border-radius: 8px;
+}
+
+.vc-chordline-staff-proof-remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgb(0 0 0 / 70%);
+    color: #fff;
+    font-size: 18px;
+    line-height: 26px;
+    cursor: pointer;
+}
+
+.vc-chordline-staff-proof-thumb {
+    width: fit-content;
+    max-width: 100%;
+    padding: 0;
+    border-radius: 8px;
+    background: none;
+    cursor: zoom-in;
+}
+
+.vc-chordline-staff-proof-full {
+    display: flex;
+    justify-content: center;
+    padding-bottom: 16px;
+}
+
+.vc-chordline-staff-proof-full img {
+    max-width: 100%;
+    max-height: 75vh;
+    border-radius: 8px;
+}

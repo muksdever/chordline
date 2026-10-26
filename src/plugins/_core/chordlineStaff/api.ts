@@ -23,6 +23,8 @@ export interface Report {
     reason: string;
     message_content: string | null;
     message_link: string | null;
+    /** Screenshot attached as proof, as an embedded image (data URL) */
+    proof_image: string | null;
     created_at: string;
 }
 
@@ -52,8 +54,42 @@ export const setStaff = (userId: string, role: "dev" | "mod") =>
 
 export const removeStaff = (userId: string) => staffRpc("staff_remove", { target_user_id: userId });
 
-export const createReport = (userId: string, reason: string, messageContent?: string, messageLink?: string) =>
-    staffRpc("report_create", { target_user_id: userId, report_reason: reason, content: messageContent ?? null, link: messageLink ?? null });
+export const createReport = (report: { userId: string; reason: string; proof: string | null; messageContent?: string; messageLink?: string; }) =>
+    staffRpc("report_create", {
+        target_user_id: report.userId,
+        report_reason: report.reason,
+        content: report.messageContent ?? null,
+        link: report.messageLink ?? null,
+        proof: report.proof
+    });
+
+/** Biggest width/height proof images are shrunk to, so screenshots stay readable but small */
+const PROOF_MAX_SIZE = 1600;
+const PROOF_MAX_LENGTH = 1_900_000;
+
+/** Turns a screenshot into a compressed embedded image (data URL) for a report */
+export async function imageToProof(file: Blob) {
+    if (!file.type.startsWith("image/")) throw new Error("That file isn't an image.");
+
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(PROOF_MAX_SIZE / bitmap.width, PROOF_MAX_SIZE / bitmap.height, 1);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+
+    const ctx = canvas.getContext("2d")!;
+    // JPEG has no transparency, so transparent areas get Discord's dark background instead of black
+    ctx.fillStyle = "#1e1f22";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    for (const quality of [0.85, 0.7, 0.55, 0.4]) {
+        const url = canvas.toDataURL("image/jpeg", quality);
+        if (url.length <= PROOF_MAX_LENGTH) return url;
+    }
+    throw new Error("That image is too big. Try cropping it.");
+}
 
 export const listReports = () => staffRpc<Report[]>("reports_list", {});
 

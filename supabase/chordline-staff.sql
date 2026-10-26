@@ -33,6 +33,12 @@ create table if not exists public.reports (
     created_at timestamptz not null default now()
 );
 
+-- Proof image (screenshot) attached to a report, as a small embedded image. Required for user reports.
+alter table public.reports add column if not exists proof_image text;
+alter table public.reports drop constraint if exists reports_proof_image_check;
+alter table public.reports add constraint reports_proof_image_check
+    check (proof_image is null or (proof_image ~ '^data:image/(png|jpeg|webp|gif);base64,' and char_length(proof_image) <= 2000000));
+
 create table if not exists public.bans (
     user_id text primary key check (user_id ~ '^[0-9]{15,21}$'),
     reason text not null check (char_length(reason) between 1 and 1000),
@@ -178,7 +184,8 @@ $$;
 
 -- Reports
 
-create or replace function public.report_create(staff_key text, target_user_id text, report_reason text, content text default null, link text default null)
+drop function if exists public.report_create(text, text, text, text, text);
+create or replace function public.report_create(staff_key text, target_user_id text, report_reason text, content text default null, link text default null, proof text default null)
 returns void
 language plpgsql
 security definer
@@ -187,8 +194,13 @@ as $$
 declare
     caller public.staff := public.require_staff(staff_key, 'mod');
 begin
-    insert into public.reports (reported_user_id, reporter_id, reason, message_content, message_link)
-    values (target_user_id, caller.user_id, report_reason, content, link);
+    -- Message reports include the message itself; user reports need a screenshot as proof
+    if link is null and proof is null then
+        raise exception 'Add an image as proof for the report';
+    end if;
+
+    insert into public.reports (reported_user_id, reporter_id, reason, message_content, message_link, proof_image)
+    values (target_user_id, caller.user_id, report_reason, content, link, proof);
 end;
 $$;
 
@@ -298,7 +310,7 @@ grant execute on function
     public.staff_list(text),
     public.staff_set(text, text, text),
     public.staff_remove(text, text),
-    public.report_create(text, text, text, text, text),
+    public.report_create(text, text, text, text, text, text),
     public.reports_list(text),
     public.report_dismiss(text, uuid),
     public.ban_add(text, text, text, integer, uuid),

@@ -15,9 +15,9 @@ import { copyWithToast } from "@utils/discord";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { RenderModalProps, User } from "@vencord/discord-types";
-import { Forms, Modal, NavigationRouter, openModal, showToast, TextInput, useEffect, useMemo, useState } from "@webpack/common";
+import { Forms, Modal, NavigationRouter, openModal, showToast, TextInput, useEffect, useMemo, useRef, useState } from "@webpack/common";
 
-import { addBan, Ban, BAN_DURATIONS, createReport, dismissReport, listBans, listReports, listStaff, removeBan, removeStaff, Report, setStaff, StaffMember, timeAgo } from "./api";
+import { addBan, Ban, BAN_DURATIONS, createReport, dismissReport, imageToProof, listBans, listReports, listStaff, removeBan, removeStaff, Report, setStaff, StaffMember, timeAgo } from "./api";
 
 const cl = classNameFactory("vc-chordline-staff-");
 
@@ -90,14 +90,81 @@ interface ReportTarget {
     messageLink?: string;
 }
 
+/** Pick, drop or paste (Ctrl+V) a screenshot, with a preview */
+function ProofPicker({ value, onChange, required }: { value: string | null; onChange(url: string | null): void; required: boolean; }) {
+    const fileInput = useRef<HTMLInputElement>(null);
+    const [loading, setLoading] = useState(false);
+
+    async function use(file: Blob | null | undefined) {
+        if (!file) return;
+        setLoading(true);
+        await runWithToast(async () => onChange(await imageToProof(file)));
+        setLoading(false);
+    }
+
+    // Paste a screenshot anywhere while the report window is open
+    useEffect(() => {
+        const onPaste = (e: ClipboardEvent) => {
+            const item = [...e.clipboardData?.items ?? []].find(i => i.type.startsWith("image/"));
+            if (!item) return;
+            e.preventDefault();
+            use(item.getAsFile());
+        };
+        document.addEventListener("paste", onPaste);
+        return () => document.removeEventListener("paste", onPaste);
+    }, []);
+
+    return (
+        <>
+            <Forms.FormTitle tag="h5" className={Margins.top16}>Proof {required ? "(required)" : "(optional)"}</Forms.FormTitle>
+            {value
+                ? (
+                    <div className={cl("proof-preview")}>
+                        <img src={value} alt="Proof" />
+                        <button className={cl("proof-remove")} onClick={() => onChange(null)} aria-label="Remove image">×</button>
+                    </div>
+                )
+                : (
+                    <button
+                        className={cl("proof-drop")}
+                        onClick={() => fileInput.current?.click()}
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => { e.preventDefault(); use(e.dataTransfer.files[0]); }}
+                    >
+                        {loading
+                            ? "Adding image..."
+                            : <>Click to add a screenshot, drop one here, or paste with <kbd>Ctrl</kbd>+<kbd>V</kbd></>}
+                    </button>
+                )}
+            <input
+                ref={fileInput}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                hidden
+                onChange={e => { use(e.currentTarget.files?.[0]); e.currentTarget.value = ""; }}
+            />
+        </>
+    );
+}
+
 function ReportModal({ target, ...props }: RenderModalProps & { target: ReportTarget; }) {
     const [reason, setReason] = useState("");
+    const [proof, setProof] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    // Message reports already include the message, so the screenshot is only required for user reports
+    const proofRequired = !target.messageLink;
 
     async function submit() {
         if (!reason.trim()) return toast("Write a reason for the report");
+        if (proofRequired && !proof) return toast("Add a screenshot as proof");
         setBusy(true);
-        const ok = await runWithToast(() => createReport(target.userId, reason.trim(), target.messageContent, target.messageLink), "Report sent to Chordline staff");
+        const ok = await runWithToast(() => createReport({
+            userId: target.userId,
+            reason: reason.trim(),
+            proof,
+            messageContent: target.messageContent,
+            messageLink: target.messageLink
+        }), "Report sent to Chordline staff");
         setBusy(false);
         if (ok) props.onClose();
     }
@@ -118,6 +185,7 @@ function ReportModal({ target, ...props }: RenderModalProps & { target: ReportTa
                 {target.messageContent && <blockquote className={classes(cl("quote"), Margins.top8)}>{target.messageContent}</blockquote>}
                 <Forms.FormTitle tag="h5" className={Margins.top16}>Reason</Forms.FormTitle>
                 <ReasonBox value={reason} onChange={setReason} placeholder="What did they do?" />
+                <ProofPicker value={proof} onChange={setProof} required={proofRequired} />
             </div>
         </Modal>
     );
@@ -212,6 +280,18 @@ function ListBody<T>({ items, error, empty, render }: { items: T[] | null; error
 
 // --- Reports (devs and up) ---
 
+function ProofViewer({ src, ...props }: RenderModalProps & { src: string; }) {
+    return (
+        <Modal {...props} size="xl" title="Proof" actions={[{ text: "Close", variant: "primary", onClick: props.onClose }]}>
+            <div className={cl("proof-full")}>
+                <img src={src} alt="Proof" />
+            </div>
+        </Modal>
+    );
+}
+
+const openProofViewer = (src: string) => openModal(props => <ProofViewer {...props} src={src} />);
+
 function ReportCard({ report, onHandled, onClose }: { report: Report; onHandled(): void; onClose(): void; }) {
     return (
         <div className={cl("card")}>
@@ -238,6 +318,11 @@ function ReportCard({ report, onHandled, onClose }: { report: Report; onHandled(
             <div className={cl("text")}>{report.reason}</div>
 
             {report.message_content && <blockquote className={cl("quote")}>{report.message_content}</blockquote>}
+            {report.proof_image && (
+                <button className={cl("proof-thumb")} onClick={() => openProofViewer(report.proof_image!)} title="Click to view full size">
+                    <img src={report.proof_image} alt="Proof" />
+                </button>
+            )}
             {report.message_link && (
                 <Button
                     variant="link"
