@@ -27,9 +27,16 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
+// Version and publisher details shown in the exe's Properties -> Details, which also helps antivirus
+// treat it as a normal app instead of an anonymous program
 [assembly: System.Reflection.AssemblyTitle("Chordline Installer")]
 [assembly: System.Reflection.AssemblyProduct("Chordline")]
-[assembly: System.Reflection.AssemblyDescription("Install and update Chordline for Discord")]
+[assembly: System.Reflection.AssemblyDescription("Chordline Installer")]
+[assembly: System.Reflection.AssemblyCompany("Chordline")]
+[assembly: System.Reflection.AssemblyCopyright("Chordline contributors. GPL-3.0-or-later. Source: github.com/muksdever/chordline")]
+[assembly: System.Reflection.AssemblyVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("1.1.0")]
 
 namespace Chordline
 {
