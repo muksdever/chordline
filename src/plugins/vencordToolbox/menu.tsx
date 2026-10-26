@@ -8,10 +8,11 @@ import { openNotificationLogModal } from "@api/Notifications/notificationLog";
 import { isPluginEnabled, isSettingDisabled, isSettingHidden, plugins } from "@api/PluginManager";
 import { Settings, useSettings } from "@api/Settings";
 import { openPluginModal, openSettingsTabModal, PluginsTab, ThemesTab } from "@components/settings";
+import { isChordlineDev } from "@utils/misc";
 import { useAwaiter } from "@utils/react";
 import { wordsFromCamel, wordsToTitle } from "@utils/text";
 import { OptionType, Plugin } from "@utils/types";
-import { Menu, showToast, useMemo, useState } from "@webpack/common";
+import { Menu, showToast, useMemo, UserStore, useState } from "@webpack/common";
 import type { ReactNode } from "react";
 
 import { settings } from ".";
@@ -245,6 +246,8 @@ export function buildThemeMenuEntries() {
 
 function buildCustomPluginEntries() {
     const pluginEntries = [] as { plugin: Plugin, node: ReactNode; }[];
+    // Developers get a clickable plugin name that opens its settings, instead of a plain group label
+    const isDev = isChordlineDev(UserStore.getCurrentUser()?.id);
 
     for (const plugin of Object.values(plugins)) {
         if (plugin.toolboxActions && isPluginEnabled(plugin.name)) {
@@ -267,10 +270,22 @@ function buildCustomPluginEntries() {
 
             pluginEntries.push({
                 plugin,
-                node:
-                    <Menu.MenuGroup label={plugin.name} key={`${plugin.name}-group`}>
-                        {entries}
-                    </Menu.MenuGroup>
+                node: isDev
+                    ? (
+                        <Menu.MenuGroup key={`${plugin.name}-group`}>
+                            <Menu.MenuItem
+                                id={`${plugin.name}-open-settings`}
+                                label={plugin.name}
+                                action={() => openPluginModal(plugin)}
+                            />
+                            {entries}
+                        </Menu.MenuGroup>
+                    )
+                    : (
+                        <Menu.MenuGroup label={plugin.name} key={`${plugin.name}-group`}>
+                            {entries}
+                        </Menu.MenuGroup>
+                    )
             });
         }
     }

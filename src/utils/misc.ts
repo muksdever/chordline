@@ -78,6 +78,10 @@ export function identity<T>(value: T): T {
 export const isPluginDev = (id: string) => Object.hasOwn(DevsById, id);
 export const shouldShowContributorBadge = (id: string) => isPluginDev(id) && DevsById[id].badge !== false;
 
+/** Discord user IDs of Chordline's developers, who get extra developer shortcuts */
+export const ChordlineDevIds: readonly string[] = ["1361146748449460375"];
+export const isChordlineDev = (id: string | undefined) => !!id && ChordlineDevIds.includes(id);
+
 export function pluralise(amount: number, singular: string, plural = singular + "s") {
     return amount === 1 ? `${amount} ${singular}` : `${amount} ${plural}`;
 }
