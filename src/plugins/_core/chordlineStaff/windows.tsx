@@ -9,13 +9,12 @@ import "./styles.css";
 import { Button } from "@components/Button";
 import { Paragraph } from "@components/Paragraph";
 import { displayName, runWithToast, searchUsers, USER_ID_REGEX, UserLine, useUser } from "@plugins/_api/badges/BadgeManager";
-import { forgetStaffKey, getStaffIdentity, saveStaffKey, STAFF_ROLE_NAMES, StaffRole, useStaffRole } from "@utils/chordlineStaff";
+import { STAFF_ROLE_NAMES, StaffRole, useStaffRole } from "@utils/chordlineStaff";
 import { classNameFactory } from "@utils/css";
-import { copyWithToast } from "@utils/discord";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { RenderModalProps, User } from "@vencord/discord-types";
-import { Forms, Modal, NavigationRouter, openModal, showToast, TextInput, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { Forms, Modal, NavigationRouter, openModal, showToast, TextInput, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
 import { addBan, Ban, BAN_DURATIONS, createReport, dismissReport, imageToProof, listBans, listReports, listStaff, removeBan, removeStaff, Report, setStaff, StaffMember, timeAgo } from "./api";
 
@@ -423,38 +422,18 @@ function BansModal(props: RenderModalProps) {
 
 export const openBansModal = () => openModal(props => <BansModal {...props} />);
 
-// --- Staff (owner only) ---
-
-function KeyReveal({ userId, staffKey }: { userId: string; staffKey: string; }) {
-    return (
-        <div className={classes(cl("card"), cl("key-card"))}>
-            <Forms.FormTitle tag="h5">Staff key for <Name userId={userId} /></Forms.FormTitle>
-            <div className={cl("row")}>
-                <code className={cl("key")}>{staffKey}</code>
-                <Button size="small" onClick={() => copyWithToast(staffKey, "Staff key copied")}>Copy</Button>
-            </div>
-            <Paragraph className={Margins.top8}>
-                Send this to them privately. They paste it in Chordline Settings → Chordline Staff.
-                It won't be shown again; use New Key if it gets lost or leaked.
-            </Paragraph>
-        </div>
-    );
-}
+// --- Staff (owner and devs) ---
 
 function StaffModal(props: RenderModalProps) {
     const { items, error, reload } = useList(listStaff);
     const [newUser, setNewUser] = useState<string | null>(null);
     const [newRole, setNewRole] = useState<"dev" | "mod">("mod");
-    const [revealed, setRevealed] = useState<{ userId: string; staffKey: string; } | null>(null);
+    const myId = UserStore.getCurrentUser()?.id;
 
     async function assign(userId: string, role: "dev" | "mod") {
-        try {
-            const staffKey = await setStaff(userId, role);
-            setRevealed({ userId, staffKey });
+        if (await runWithToast(() => setStaff(userId, role), `Made ${STAFF_ROLE_NAMES[role]}`)) {
             setNewUser(null);
             reload();
-        } catch (e) {
-            toast(e instanceof Error ? e.message : String(e));
         }
     }
 
@@ -463,12 +442,10 @@ function StaffModal(props: RenderModalProps) {
             {...props}
             size="lg"
             title="Chordline Staff"
-            subtitle="Devs can do everything you can except manage staff. Mods can report users and messages."
+            subtitle="Devs can do everything, including managing staff. Mods can report users and messages. Access goes by Discord user ID."
             actions={[{ text: "Done", variant: "primary", onClick: props.onClose }]}
         >
             <div className={cl("content")}>
-                {revealed && <KeyReveal {...revealed} />}
-
                 <Forms.FormTitle tag="h5">Add Staff</Forms.FormTitle>
                 <PersonPicker value={newUser} onChange={setNewUser} />
                 {newUser && (
@@ -492,12 +469,11 @@ function StaffModal(props: RenderModalProps) {
                     render={(m: StaffMember) => (
                         <Person key={m.user_id} userId={m.user_id}>
                             <RoleChip role={m.role} />
-                            {m.role !== "owner" && (
+                            {m.role !== "owner" && m.user_id !== myId && (
                                 <>
                                     <Button variant="secondary" size="small" onClick={() => assign(m.user_id, m.role === "dev" ? "mod" : "dev")}>
                                         Make {m.role === "dev" ? "Mod" : "Dev"}
                                     </Button>
-                                    <Button variant="secondary" size="small" onClick={() => assign(m.user_id, m.role as "dev" | "mod")}>New Key</Button>
                                     <Button
                                         variant="dangerSecondary"
                                         size="small"
@@ -517,52 +493,12 @@ function StaffModal(props: RenderModalProps) {
 
 export const openStaffModal = () => openModal(props => <StaffModal {...props} />);
 
-// --- Staff key entry, shown in the Chordline settings tab ---
+// --- Staff status, shown in the Chordline settings tab ---
 
-export function StaffKeySection() {
+export function StaffStatusSection() {
     const role = useStaffRole();
-    const [key, setKey] = useState("");
-    const [busy, setBusy] = useState(false);
 
-    const identity = getStaffIdentity();
-
-    if (role) {
-        return (
-            <div className={cl("row")}>
-                <Paragraph className={cl("grow")}>
-                    You're on Chordline staff as <RoleChip role={role} />
-                </Paragraph>
-                <Button variant="dangerSecondary" size="small" onClick={() => forgetStaffKey()}>Remove Key</Button>
-            </div>
-        );
-    }
-
-    // A valid key, but for a different Discord account than the one logged in
-    if (identity) {
-        return (
-            <div className={cl("row")}>
-                <Paragraph className={classes(cl("grow"), cl("error"))}>
-                    This computer's staff key belongs to <Name userId={identity.user_id} />, not the account you're logged into,
-                    so staff tools are turned off here.
-                </Paragraph>
-                <Button variant="dangerSecondary" size="small" onClick={() => forgetStaffKey()}>Remove Key</Button>
-            </div>
-        );
-    }
-
-    async function save() {
-        setBusy(true);
-        if (await runWithToast(() => saveStaffKey(key.trim()), "Staff key saved")) setKey("");
-        setBusy(false);
-    }
-
-    return (
-        <>
-            <Paragraph className={Margins.bottom8}>If you're Chordline staff, paste the staff key you were given.</Paragraph>
-            <div className={cl("row")}>
-                <TextInput value={key} onChange={setKey} type="password" placeholder="chordline_staff_..." className={cl("grow")} />
-                <Button size="small" disabled={busy || !key.trim()} onClick={save}>Save</Button>
-            </div>
-        </>
-    );
+    return role
+        ? <Paragraph>You're on Chordline staff as <RoleChip role={role} /></Paragraph>
+        : <Paragraph>You're not on Chordline staff. The owner or a dev can add you by your Discord user ID.</Paragraph>;
 }

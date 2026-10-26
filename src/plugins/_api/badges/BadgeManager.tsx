@@ -8,6 +8,7 @@ import "./badgeManager.css";
 
 import { Button } from "@components/Button";
 import { Paragraph } from "@components/Paragraph";
+import { useStaffRole } from "@utils/chordlineStaff";
 import { classNameFactory } from "@utils/css";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
@@ -15,7 +16,7 @@ import { useAwaiter } from "@utils/react";
 import { RenderModalProps, User } from "@vencord/discord-types";
 import { ConfirmModal, Forms, Modal, openModal, RelationshipStore, showToast, TextInput, useEffect, useMemo, useReducer, useRef, UserStore, UserUtils, useState } from "@webpack/common";
 
-import { BADGE_RARITIES, ChordlineBadge, createBadge, deleteBadge, getAllChordlineBadges, getBadgeHolders, giveBadge, hasAdminKey, imageToBadgeIcon, isBadgeBackendConfigured, loadChordlineBadges, onChordlineBadgesChange, setAdminKey, takeBadge, updateBadge } from "./chordlineBadges";
+import { BADGE_RARITIES, ChordlineBadge, createBadge, deleteBadge, getAllChordlineBadges, getBadgeHolders, giveBadge, imageToBadgeIcon, isBadgeBackendConfigured, loadChordlineBadges, onChordlineBadgesChange, takeBadge, updateBadge } from "./chordlineBadges";
 
 const cl = classNameFactory("vc-chordline-badges-");
 
@@ -61,28 +62,6 @@ export function searchUsers(query: string) {
         .slice(0, 8);
 }
 
-function KeySetup({ onDone }: { onDone(): void; }) {
-    const [key, setKey] = useState("");
-    const [busy, setBusy] = useState(false);
-
-    async function save() {
-        setBusy(true);
-        if (await runWithToast(() => setAdminKey(key.trim()), "Admin key saved on this computer")) onDone();
-        setBusy(false);
-    }
-
-    return (
-        <>
-            <Paragraph className={Margins.bottom8}>
-                This Discord install doesn't have your Chordline admin key yet. Paste it once and it's remembered here.
-            </Paragraph>
-            <div className={cl("row")}>
-                <TextInput value={key} onChange={setKey} type="password" placeholder="Admin key" className={cl("grow")} />
-                <Button size="small" disabled={busy || !key.trim()} onClick={save}>Save</Button>
-            </div>
-        </>
-    );
-}
 
 function BadgeForm({ initial, submitText, onSubmit, onCancel }: {
     initial?: ChordlineBadge;
@@ -322,18 +301,15 @@ function AdminView() {
 }
 
 function BadgeManagerModal(props: RenderModalProps) {
-    const [keyVersion, bumpKey] = useReducer(x => x + 1, 0);
-    const [hasKey] = useAwaiter(hasAdminKey, { fallbackValue: undefined as boolean | undefined, deps: [keyVersion] });
+    const role = useStaffRole();
 
     useEffect(() => void loadChordlineBadges(), []);
 
     let body: React.ReactNode;
     if (!isBadgeBackendConfigured())
-        body = <Paragraph>The badge database isn't set up. Add your Supabase URL and anon key in src/plugins/_api/badges/chordlineBadges.ts.</Paragraph>;
-    else if (hasKey === undefined)
-        body = <Paragraph>Loading...</Paragraph>;
-    else if (!hasKey)
-        body = <KeySetup onDone={bumpKey} />;
+        body = <Paragraph>The badge database isn't set up. Add your Supabase URL and anon key in src/utils/chordlineSupabase.ts.</Paragraph>;
+    else if (role !== "owner" && role !== "dev")
+        body = <Paragraph>Only Chordline's owner and devs can manage badges.</Paragraph>;
     else
         body = <AdminView />;
 

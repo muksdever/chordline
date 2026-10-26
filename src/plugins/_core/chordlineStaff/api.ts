@@ -48,9 +48,9 @@ export const BAN_DURATIONS = [
 
 export const listStaff = () => staffRpc<StaffMember[]>("staff_list", {});
 
-/** Adds someone as dev or mod (or changes their role) and returns their new staff key */
+/** Adds someone as dev or mod, or changes their role */
 export const setStaff = (userId: string, role: "dev" | "mod") =>
-    staffRpc<string>("staff_set", { target_user_id: userId, new_role: role });
+    staffRpc("staff_set", { target_user_id: userId, new_role: role });
 
 export const removeStaff = (userId: string) => staffRpc("staff_remove", { target_user_id: userId });
 

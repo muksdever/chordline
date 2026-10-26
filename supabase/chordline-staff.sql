@@ -2,23 +2,26 @@
 -- Run this AFTER chordline-badges.sql: Dashboard -> SQL Editor -> New query -> paste -> Run.
 -- It is safe to run again.
 --
--- Roles:  owner (you)  -> everything, including managing staff
---         dev          -> everything except managing staff (badges, reports, bans)
+-- Roles:  owner (you)  -> everything
+--         dev          -> everything: staff, badges, reports, bans (but can't change the owner)
 --         mod          -> can report users and messages
 --
--- Every staff member has their own secret key; only its SHA-256 hash is stored.
--- All of these tables have row level security with no policies, so they can only be used
--- through the functions below, which check the key and work out who is calling.
+-- Staff are identified only by their Discord user ID, which Chordline sends with each request.
+-- WARNING: the database can't verify that ID, so someone who edits their Chordline (or calls these
+-- functions directly with the public anon key) can pretend to be any staff member.
+--
+-- The tables have row level security with no policies, so they're only used through the functions below.
 
 create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.staff (
     user_id text primary key check (user_id ~ '^[0-9]{15,21}$'),
     role text not null check (role in ('owner', 'dev', 'mod')),
-    key_hash text not null unique,
     added_by text,
     created_at timestamptz not null default now()
 );
+-- Staff used to have personal keys; they're identified by user ID now
+alter table public.staff drop column if exists key_hash;
 
 create table if not exists public.reports (
     id uuid primary key default gen_random_uuid(),
@@ -52,15 +55,27 @@ alter table public.staff enable row level security;
 alter table public.reports enable row level security;
 alter table public.bans enable row level security;
 
--- The owner uses the admin key that was set up for badges
-insert into public.staff (user_id, role, key_hash)
-select '1361146748449460375', 'owner', key_hash
-from public.badge_admin_keys
-where note = 'owner'
-on conflict (user_id) do nothing;
+insert into public.staff (user_id, role)
+values ('1361146748449460375', 'owner')
+on conflict (user_id) do update set role = 'owner';
 
--- Internal: returns the caller's staff row if their key has at least the given role
-create or replace function public.require_staff(staff_key text, min_role text)
+-- Remove the old key-based functions
+drop function if exists public.staff_whoami(text);
+drop function if exists public.staff_list(text);
+drop function if exists public.staff_set(text, text, text);
+drop function if exists public.staff_remove(text, text);
+drop function if exists public.report_create(text, text, text, text, text);
+drop function if exists public.report_create(text, text, text, text, text, text);
+drop function if exists public.reports_list(text);
+drop function if exists public.report_dismiss(text, uuid);
+drop function if exists public.ban_add(text, text, text, integer, uuid);
+drop function if exists public.ban_remove(text, text);
+drop function if exists public.bans_list(text);
+drop function if exists public.staff_new_key();
+drop function if exists public.require_staff(text, text);
+
+-- Internal: returns the caller's staff row if they have at least the given role
+create or replace function public.require_staff(caller_id text, min_role text)
 returns public.staff
 language plpgsql
 security definer
@@ -70,11 +85,10 @@ declare
     member public.staff;
     ranks constant jsonb := '{"mod": 1, "dev": 2, "owner": 3}';
 begin
-    select * into member from public.staff
-    where key_hash = encode(extensions.digest(coalesce(staff_key, ''), 'sha256'), 'hex');
+    select * into member from public.staff where user_id = caller_id;
 
     if member is null then
-        raise exception 'Invalid staff key' using errcode = '42501';
+        raise exception 'You''re not on Chordline staff' using errcode = '42501';
     end if;
     if (ranks ->> member.role)::int < (ranks ->> min_role)::int then
         raise exception 'You need to be % or higher to do that', min_role using errcode = '42501';
@@ -84,7 +98,8 @@ end;
 $$;
 revoke all on function public.require_staff(text, text) from public, anon, authenticated;
 
--- Devs can manage badges too: badge functions now accept the owner/dev staff keys
+-- Badge functions take an "admin_key"; it's now the caller's Discord user ID (owner or dev).
+-- The original badge admin key still works too.
 create or replace function public.check_badge_admin_key(admin_key text)
 returns void
 language plpgsql
@@ -103,40 +118,27 @@ end;
 $$;
 revoke all on function public.check_badge_admin_key(text) from public, anon, authenticated;
 
-create or replace function public.staff_new_key()
+-- What role does this user have? null if they're not staff.
+create or replace function public.staff_role(caller_id text)
 returns text
 language sql
-volatile
-set search_path = ''
-as $$
-    select 'chordline_staff_' || encode(extensions.gen_random_bytes(24), 'hex');
-$$;
-revoke all on function public.staff_new_key() from public, anon, authenticated;
-
--- Who am I? Returns the caller's user id and role.
-create or replace function public.staff_whoami(staff_key text)
-returns json
-language plpgsql
+stable
 security definer
 set search_path = ''
 as $$
-declare
-    member public.staff := public.require_staff(staff_key, 'mod');
-begin
-    return json_build_object('user_id', member.user_id, 'role', member.role);
-end;
+    select role from public.staff where user_id = caller_id;
 $$;
 
--- Staff management (owner only)
+-- Staff management (devs and owner)
 
-create or replace function public.staff_list(staff_key text)
+create or replace function public.staff_list(caller_id text)
 returns setof json
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-    perform public.require_staff(staff_key, 'owner');
+    perform public.require_staff(caller_id, 'dev');
     return query
         select json_build_object('user_id', s.user_id, 'role', s.role, 'added_by', s.added_by, 'created_at', s.created_at)
         from public.staff s
@@ -144,16 +146,15 @@ begin
 end;
 $$;
 
--- Adds or changes a staff member and returns their NEW key (shown once)
-create or replace function public.staff_set(staff_key text, target_user_id text, new_role text)
-returns text
+-- Adds someone as dev or mod, or changes their role
+create or replace function public.staff_set(caller_id text, target_user_id text, new_role text)
+returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-    caller public.staff := public.require_staff(staff_key, 'owner');
-    new_key text := public.staff_new_key();
+    caller public.staff := public.require_staff(caller_id, 'dev');
 begin
     if new_role not in ('dev', 'mod') then
         raise exception 'Role must be dev or mod';
@@ -161,38 +162,42 @@ begin
     if target_user_id = caller.user_id then
         raise exception 'You can''t change your own role';
     end if;
+    if exists (select 1 from public.staff where user_id = target_user_id and role = 'owner') then
+        raise exception 'The owner''s role can''t be changed';
+    end if;
 
-    insert into public.staff (user_id, role, key_hash, added_by)
-    values (target_user_id, new_role, encode(extensions.digest(new_key, 'sha256'), 'hex'), caller.user_id)
-    on conflict (user_id) do update
-        set role = excluded.role, key_hash = excluded.key_hash, added_by = excluded.added_by;
-    return new_key;
+    insert into public.staff (user_id, role, added_by)
+    values (target_user_id, new_role, caller.user_id)
+    on conflict (user_id) do update set role = excluded.role, added_by = excluded.added_by;
 end;
 $$;
 
-create or replace function public.staff_remove(staff_key text, target_user_id text)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-    perform public.require_staff(staff_key, 'owner');
-    delete from public.staff where user_id = target_user_id and role <> 'owner';
-end;
-$$;
-
--- Reports
-
-drop function if exists public.report_create(text, text, text, text, text);
-create or replace function public.report_create(staff_key text, target_user_id text, report_reason text, content text default null, link text default null, proof text default null)
+create or replace function public.staff_remove(caller_id text, target_user_id text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-    caller public.staff := public.require_staff(staff_key, 'mod');
+    caller public.staff := public.require_staff(caller_id, 'dev');
+begin
+    if target_user_id = caller.user_id then
+        raise exception 'You can''t remove yourself';
+    end if;
+    delete from public.staff where user_id = target_user_id and role <> 'owner';
+end;
+$$;
+
+-- Reports
+
+create or replace function public.report_create(caller_id text, target_user_id text, report_reason text, content text default null, link text default null, proof text default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    caller public.staff := public.require_staff(caller_id, 'mod');
 begin
     -- Message reports include the message itself; user reports need a screenshot as proof
     if link is null and proof is null then
@@ -204,14 +209,14 @@ begin
 end;
 $$;
 
-create or replace function public.reports_list(staff_key text)
+create or replace function public.reports_list(caller_id text)
 returns setof json
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-    perform public.require_staff(staff_key, 'dev');
+    perform public.require_staff(caller_id, 'dev');
     return query
         select row_to_json(r) from public.reports r
         where r.status = 'open'
@@ -219,14 +224,14 @@ begin
 end;
 $$;
 
-create or replace function public.report_dismiss(staff_key text, target_report_id uuid)
+create or replace function public.report_dismiss(caller_id text, target_report_id uuid)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-    caller public.staff := public.require_staff(staff_key, 'dev');
+    caller public.staff := public.require_staff(caller_id, 'dev');
 begin
     update public.reports set status = 'dismissed', handled_by = caller.user_id, handled_at = now()
     where id = target_report_id;
@@ -235,14 +240,14 @@ $$;
 
 -- Bans
 
-create or replace function public.ban_add(staff_key text, target_user_id text, ban_reason text, duration_minutes integer default null, from_report_id uuid default null)
+create or replace function public.ban_add(caller_id text, target_user_id text, ban_reason text, duration_minutes integer default null, from_report_id uuid default null)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-    caller public.staff := public.require_staff(staff_key, 'dev');
+    caller public.staff := public.require_staff(caller_id, 'dev');
 begin
     if exists (select 1 from public.staff where user_id = target_user_id and role in ('owner', 'dev')) then
         raise exception 'You can''t ban the owner or a dev';
@@ -256,7 +261,7 @@ begin
     on conflict (user_id) do update
         set reason = excluded.reason, banned_by = excluded.banned_by, expires_at = excluded.expires_at, created_at = now();
 
-    -- Banned staff lose their role
+    -- Banned mods lose their role
     delete from public.staff where user_id = target_user_id and role = 'mod';
 
     -- Close every open report about them
@@ -265,26 +270,26 @@ begin
 end;
 $$;
 
-create or replace function public.ban_remove(staff_key text, target_user_id text)
+create or replace function public.ban_remove(caller_id text, target_user_id text)
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-    perform public.require_staff(staff_key, 'dev');
+    perform public.require_staff(caller_id, 'dev');
     delete from public.bans where user_id = target_user_id;
 end;
 $$;
 
-create or replace function public.bans_list(staff_key text)
+create or replace function public.bans_list(caller_id text)
 returns setof json
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-    perform public.require_staff(staff_key, 'dev');
+    perform public.require_staff(caller_id, 'dev');
     return query
         select row_to_json(b) from public.bans b
         where b.expires_at is null or b.expires_at > now()
@@ -306,7 +311,7 @@ as $$
 $$;
 
 grant execute on function
-    public.staff_whoami(text),
+    public.staff_role(text),
     public.staff_list(text),
     public.staff_set(text, text, text),
     public.staff_remove(text, text),

@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { saveStaffKey } from "@utils/chordlineStaff";
-import { getStaffKey, isSupabaseConfigured, publicRpc, staffRpc, supabaseRequest as request } from "@utils/chordlineSupabase";
+import { isSupabaseConfigured, publicRpc, staffRpc, supabaseRequest as request } from "@utils/chordlineSupabase";
 import { Logger } from "@utils/Logger";
 
 // Chordline badges are stored in Supabase (see supabase/chordline-badges.sql).
@@ -138,14 +137,7 @@ export async function saveOwnBadgeSettings(userId: string, displayOrder?: string
     }
 }
 
-// --- Admin actions (need a dev or owner staff key) ---
-
-export async function hasAdminKey() {
-    return !!await getStaffKey();
-}
-
-/** Saves a staff key on this computer if the database accepts it */
-export const setAdminKey = saveStaffKey;
+// --- Admin actions (owner and devs; the database checks the logged-in user's ID against the staff list) ---
 
 async function rpc<T = void>(fn: string, args: Record<string, string | number>) {
     const result = await staffRpc<T>(fn, args, "admin_key");

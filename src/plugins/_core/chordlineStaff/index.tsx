@@ -80,7 +80,7 @@ export default definePlugin({
 
         return (
             <>
-                {hasStaffRole("owner") && <Menu.MenuItem id="vc-chordline-staff" label="Staff" action={openStaffModal} />}
+                <Menu.MenuItem id="vc-chordline-staff" label="Staff" action={openStaffModal} />
                 <Menu.MenuItem id="vc-chordline-reports" label="Reports" action={openReportsModal} />
                 <Menu.MenuItem id="vc-chordline-bans" label="Bans" action={openBansModal} />
             </>
@@ -93,7 +93,9 @@ export default definePlugin({
     },
 
     flux: {
+        // Also fires when switching Discord accounts
         CONNECTION_OPEN() {
+            refreshStaffIdentity();
             checkBan();
         }
     },

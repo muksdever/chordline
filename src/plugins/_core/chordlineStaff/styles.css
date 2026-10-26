@@ -121,23 +121,6 @@
     color: #22d3ee;
 }
 
-.vc-chordline-staff-key-card {
-    margin-bottom: 16px;
-    border: 1px solid #8b5cf680;
-}
-
-.vc-chordline-staff-key {
-    flex: 1;
-    min-width: 0;
-    padding: 8px 10px;
-    border-radius: 6px;
-    background: var(--background-base-lowest, var(--background-tertiary));
-    color: var(--text-default, var(--text-normal));
-    font-family: var(--font-code);
-    font-size: 13px;
-    overflow-wrap: anywhere;
-    user-select: all;
-}
 
 .vc-chordline-staff-proof-drop {
     width: 100%;

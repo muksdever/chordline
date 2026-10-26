@@ -26,7 +26,7 @@ import { SpecialCard } from "@components/settings/SpecialCard";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
 import { openContributorModal } from "@components/settings/tabs/plugins/ContributorModal";
 import { openPluginModal } from "@components/settings/tabs/plugins/PluginModal";
-import { StaffKeySection } from "@plugins/_core/chordlineStaff/windows";
+import { StaffStatusSection } from "@plugins/_core/chordlineStaff/windows";
 import NoTrack from "@plugins/_core/noTrack";
 import SettingsPlugin from "@plugins/_core/settings";
 import { gitRemote } from "@shared/vencordUserAgent";
@@ -213,7 +213,7 @@ function VencordSettings() {
 
             <section className={Margins.top16}>
                 <Forms.FormTitle tag="h5">Chordline Staff</Forms.FormTitle>
-                <StaffKeySection />
+                <StaffStatusSection />
             </section>
         </SettingsTab>
     );

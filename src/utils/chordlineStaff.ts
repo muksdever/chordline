@@ -7,36 +7,28 @@
 import { Logger } from "@utils/Logger";
 import { useEffect, useReducer, UserStore } from "@webpack/common";
 
-import { clearStaffKey, getStaffKey, isSupabaseConfigured, setStaffKey, staffRpc } from "./chordlineSupabase";
+import { isSupabaseConfigured, publicRpc } from "./chordlineSupabase";
 
-// Who this Chordline user is on Chordline's staff (see supabase/chordline-staff.sql), based on their staff key.
+// The logged-in Discord user's role on Chordline's staff (see supabase/chordline-staff.sql), looked up by their user ID.
 
 export type StaffRole = "owner" | "dev" | "mod";
 
 const RANKS: Record<StaffRole, number> = { mod: 1, dev: 2, owner: 3 };
 export const STAFF_ROLE_NAMES: Record<StaffRole, string> = { owner: "Owner", dev: "Dev", mod: "Mod" };
 
-interface StaffIdentity {
-    user_id: string;
-    role: StaffRole;
-}
-
 const logger = new Logger("ChordlineStaff", "#e5c890");
 const listeners = new Set<() => void>();
 
-let me: StaffIdentity | null = null;
+/** The role we looked up, and for which account (so switching accounts doesn't keep the old role) */
+let me: { userId: string; role: StaffRole | null; } | null = null;
 
-export const getStaffIdentity = () => me;
-
-/**
- * Whether the staff key on this computer belongs to the Discord account that's logged in right now.
- * Staff tools only show when it does, so a key pasted into someone else's Chordline (or used on another
- * account) doesn't give that account any access.
- */
-export const isKeyForCurrentAccount = () => !!me && me.user_id === UserStore.getCurrentUser()?.id;
+const currentRole = () => me && me.userId === UserStore.getCurrentUser()?.id ? me.role : null;
 
 /** Whether the logged-in account has at least the given role (owner > dev > mod) */
-export const hasStaffRole = (min: StaffRole) => isKeyForCurrentAccount() && RANKS[me!.role] >= RANKS[min];
+export const hasStaffRole = (min: StaffRole) => {
+    const role = currentRole();
+    return !!role && RANKS[role] >= RANKS[min];
+};
 
 export function onStaffChange(listener: () => void) {
     listeners.add(listener);
@@ -47,40 +39,20 @@ export function onStaffChange(listener: () => void) {
 export function useStaffRole() {
     const [, rerender] = useReducer(x => x + 1, 0);
     useEffect(() => onStaffChange(rerender), []);
-    return isKeyForCurrentAccount() ? me!.role : null;
+    return currentRole();
 }
 
-function setIdentity(identity: StaffIdentity | null) {
-    me = identity;
-    listeners.forEach(l => l());
-}
-
-/** Checks this computer's staff key with the database */
+/** Looks up the logged-in account's staff role */
 export async function refreshStaffIdentity() {
-    if (!isSupabaseConfigured() || !await getStaffKey()) return setIdentity(null);
+    const userId = UserStore.getCurrentUser()?.id;
+    if (!userId || !isSupabaseConfigured()) return;
 
     try {
-        setIdentity(await staffRpc<StaffIdentity>("staff_whoami", {}));
+        const role = await publicRpc<StaffRole | null>("staff_role", { caller_id: userId });
+        me = { userId, role };
     } catch (e) {
-        logger.warn("Staff key was not accepted", e);
-        setIdentity(null);
+        logger.warn("Couldn't check staff role", e);
+        me = { userId, role: null };
     }
-}
-
-/** Saves a staff key on this computer if the database accepts it */
-export async function saveStaffKey(key: string) {
-    const previous = await getStaffKey();
-    await setStaffKey(key);
-    try {
-        setIdentity(await staffRpc<StaffIdentity>("staff_whoami", {}));
-    } catch (e) {
-        if (previous) await setStaffKey(previous);
-        else await clearStaffKey();
-        throw new Error("That staff key wasn't accepted. Check you copied all of it.");
-    }
-}
-
-export async function forgetStaffKey() {
-    await clearStaffKey();
-    setIdentity(null);
+    listeners.forEach(l => l());
 }
