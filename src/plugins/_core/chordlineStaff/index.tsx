@@ -98,6 +98,12 @@ export default definePlugin({
         }
     },
 
+    /** For trying out the ban screen from the console: shows it with example data for a few seconds */
+    previewBanScreen() {
+        showBanScreen({ reason: "Example ban (preview)", expires_at: new Date(Date.now() + 26 * 3600_000 + 754_000).toISOString() }, hideBanScreen);
+        setTimeout(() => checkBan(), 8000);
+    },
+
     start() {
         refreshStaffIdentity();
         checkBan();
