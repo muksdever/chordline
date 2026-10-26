@@ -18,7 +18,8 @@
 
 import "./fixDiscordBadgePadding.css";
 
-import { _getBadges, BadgePosition, BadgeUserArgs, ProfileBadge } from "@api/Badges";
+import { _getBadges, addProfileBadge, BadgePosition, BadgeUserArgs, ProfileBadge, removeProfileBadge } from "@api/Badges";
+import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
 import { Heart } from "@components/Heart";
@@ -29,9 +30,14 @@ import { Devs } from "@utils/constants";
 import { copyWithToast } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { Margins } from "@utils/margins";
-import { shouldShowContributorBadge } from "@utils/misc";
+import { isChordlineDev, shouldShowContributorBadge } from "@utils/misc";
 import definePlugin from "@utils/types";
+import type { User } from "@vencord/discord-types";
 import { ContextMenuApi, Forms, Menu, Modal, openModal, showToast, UserStore } from "@webpack/common";
+
+import { hookBadgeDirectory, splitBadgeSettings, unhookBadgeDirectory } from "./badgeDirectory";
+import { openBadgeManager, runWithToast } from "./BadgeManager";
+import { getAllChordlineBadges, getHeldBadges, getUserChordlineBadges, giveBadge, isBadgeBackendConfigured, isChordlineBadgeId, loadChordlineBadges, takeBadge, toChordlineBadgeId } from "./chordlineBadges";
 
 const CONTRIBUTOR_BADGE = "https://cdn.discordapp.com/emojis/1562267648857997356.webp?size=240";
 
@@ -51,9 +57,54 @@ async function loadBadges(noCache = false) {
     if (noCache)
         init.cache = "no-cache";
 
-    DonorBadges = await fetch("https://badges.vencord.dev/badges.json", init)
-        .then(r => r.json());
+    [DonorBadges] = await Promise.all([
+        fetch("https://badges.vencord.dev/badges.json", init).then(r => r.json()),
+        loadChordlineBadges()
+    ]);
 }
+
+const isCurrentUserDev = () => isChordlineDev(UserStore.getCurrentUser()?.id);
+
+const ChordlineBadges: ProfileBadge = {
+    id: "chordline_badges",
+    position: BadgePosition.START,
+    getBadges: ({ userId }) => getUserChordlineBadges(userId).map(badge => ({
+        id: toChordlineBadgeId(badge.id),
+        iconSrc: badge.icon_url,
+        description: badge.name,
+        position: BadgePosition.START,
+        onContextMenu(event, badge) {
+            ContextMenuApi.openContextMenu(event, () => <BadgeContextMenu badge={badge} />);
+        }
+    }))
+};
+
+// Right-click a user -> Chordline Badges, to give or take badges (Chordline devs only)
+const UserContextMenuPatch: NavContextMenuPatchCallback = (children, { user }: { user?: User; }) => {
+    if (!user || !isBadgeBackendConfigured() || !isCurrentUserDev()) return;
+
+    const userBadgeIds = new Set(getHeldBadges(user.id).map(h => h.badge.id));
+    const allBadges = getAllChordlineBadges();
+
+    children.push(
+        <Menu.MenuItem id="vc-chordline-badges" label="Chordline Badges">
+            {allBadges.map(badge => (
+                <Menu.MenuCheckboxItem
+                    id={`vc-chordline-badge-${badge.id}`}
+                    key={badge.id}
+                    label={badge.name}
+                    checked={userBadgeIds.has(badge.id)}
+                    action={() => userBadgeIds.has(badge.id)
+                        ? runWithToast(() => takeBadge(badge.id, user.id), `Took ${badge.name} from ${user.username}`)
+                        : runWithToast(() => giveBadge(badge.id, user.id), `Gave ${badge.name} to ${user.username}`)
+                    }
+                />
+            ))}
+            {allBadges.length > 0 && <Menu.MenuSeparator />}
+            <Menu.MenuItem id="vc-chordline-badges-manage" label="Manage Badges..." action={openBadgeManager} />
+        </Menu.MenuItem>
+    );
+};
 
 let intervalId: any;
 
@@ -114,6 +165,28 @@ export default definePlugin({
                 }
             ]
         },
+        // Chordline badges in Discord's badge customization: send only Discord's badges to Discord when saving
+        {
+            find: "USER_BADGE_SETTINGS,body:",
+            replacement: {
+                match: /(url:\i\.\i\.USER_BADGE_SETTINGS,body:)(\i)/,
+                replace: "$1$self.splitBadgeSettings($2)"
+            }
+        },
+        // ...and map Chordline profile badge ids to themselves, so the customization preview can hide and reorder them
+        {
+            find: "staff_personal:22,",
+            replacement: [
+                {
+                    match: /function (\i)\((\i)\)\{(?=let \i=\i\[\2\];if\(null!=\i\)return \i;)/,
+                    replace: "$&if($self.isChordlineBadgeId($2))return $2;"
+                },
+                {
+                    match: /function (\i)\((\i)\)\{(?=return \i\.get\(\2\)\?\?)/,
+                    replace: "$&if($self.isChordlineBadgeId($2))return $2;"
+                }
+            ]
+        },
         {
             find: "getLegacyUsername(){",
             replacement: {
@@ -128,16 +201,38 @@ export default definePlugin({
         return DonorBadges;
     },
 
-    toolboxActions: {
-        async "Refetch Badges"() {
-            await loadBadges(true);
-            showToast({ text: "Successfully refetched badges!", variant: "success" });
-        }
+    toolboxActions: () => (
+        <>
+            <Menu.MenuItem
+                id="BadgeAPI-refetch"
+                label="Refetch Badges"
+                action={async () => {
+                    await loadBadges(true);
+                    showToast({ text: "Successfully refetched badges!", variant: "success" });
+                }}
+            />
+            {isCurrentUserDev() && (
+                <Menu.MenuItem
+                    id="BadgeAPI-manage-chordline"
+                    label="Manage Chordline Badges"
+                    action={openBadgeManager}
+                />
+            )}
+        </>
+    ),
+
+    contextMenus: {
+        "user-context": UserContextMenuPatch
     },
 
     userProfileBadge: ContributorBadge,
 
+    splitBadgeSettings,
+    isChordlineBadgeId,
+
     async start() {
+        addProfileBadge(ChordlineBadges);
+        hookBadgeDirectory();
         await loadBadges();
 
         clearInterval(intervalId);
@@ -146,6 +241,8 @@ export default definePlugin({
 
     async stop() {
         clearInterval(intervalId);
+        removeProfileBadge(ChordlineBadges);
+        unhookBadgeDirectory();
     },
 
     getBadges(profile: { userId: string; guildId: string; }) {

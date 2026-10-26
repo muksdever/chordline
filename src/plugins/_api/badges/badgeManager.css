@@ -1,0 +1,113 @@
+.vc-chordline-badges-content {
+    padding-bottom: 16px;
+}
+
+.vc-chordline-badges-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vc-chordline-badges-grow {
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-chordline-badges-form {
+    display: flex;
+    gap: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--background-base-lower, var(--background-secondary));
+}
+
+.vc-chordline-badges-form-fields {
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-chordline-badges-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    padding: 0;
+    border: 2px dashed var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 8px;
+    background: var(--background-base-lowest, var(--background-tertiary));
+    color: var(--text-muted);
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.vc-chordline-badges-preview:hover {
+    border-color: var(--text-muted);
+}
+
+.vc-chordline-badges-preview img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+
+.vc-chordline-badges-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vc-chordline-badges-badge {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--background-base-lower, var(--background-secondary));
+}
+
+.vc-chordline-badges-icon {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+
+.vc-chordline-badges-name {
+    color: var(--header-primary, var(--text-default));
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-chordline-badges-count {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vc-chordline-badges-users {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.vc-chordline-badges-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--background-base-lowest, var(--background-tertiary));
+}
+
+.vc-chordline-badges-user img,
+.vc-chordline-badges-user-placeholder {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+}
+
+.vc-chordline-badges-user-placeholder {
+    background: var(--background-modifier-accent, #4e5058);
+}

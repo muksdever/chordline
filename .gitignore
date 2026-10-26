@@ -26,3 +26,6 @@ ExtensionCache/
 
 # Chordline installer build output
 installer/bin/
+
+# Chordline badge admin key (secret, never commit)
+supabase/admin-key.txt
