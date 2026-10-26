@@ -439,12 +439,26 @@ export function StaffKeySection() {
     const [key, setKey] = useState("");
     const [busy, setBusy] = useState(false);
 
+    const identity = getStaffIdentity();
+
     if (role) {
         return (
             <div className={cl("row")}>
                 <Paragraph className={cl("grow")}>
                     You're on Chordline staff as <RoleChip role={role} />
-                    {getStaffIdentity()?.user_id && <> (<Name userId={getStaffIdentity()!.user_id} />)</>}
+                </Paragraph>
+                <Button variant="dangerSecondary" size="small" onClick={() => forgetStaffKey()}>Remove Key</Button>
+            </div>
+        );
+    }
+
+    // A valid key, but for a different Discord account than the one logged in
+    if (identity) {
+        return (
+            <div className={cl("row")}>
+                <Paragraph className={classes(cl("grow"), cl("error"))}>
+                    This computer's staff key belongs to <Name userId={identity.user_id} />, not the account you're logged into,
+                    so staff tools are turned off here.
                 </Paragraph>
                 <Button variant="dangerSecondary" size="small" onClick={() => forgetStaffKey()}>Remove Key</Button>
             </div>

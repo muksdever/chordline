@@ -5,7 +5,7 @@
  */
 
 import { Logger } from "@utils/Logger";
-import { useEffect, useReducer } from "@webpack/common";
+import { useEffect, useReducer, UserStore } from "@webpack/common";
 
 import { clearStaffKey, getStaffKey, isSupabaseConfigured, setStaffKey, staffRpc } from "./chordlineSupabase";
 
@@ -28,19 +28,26 @@ let me: StaffIdentity | null = null;
 
 export const getStaffIdentity = () => me;
 
-/** Whether this user has at least the given role (owner > dev > mod) */
-export const hasStaffRole = (min: StaffRole) => !!me && RANKS[me.role] >= RANKS[min];
+/**
+ * Whether the staff key on this computer belongs to the Discord account that's logged in right now.
+ * Staff tools only show when it does, so a key pasted into someone else's Chordline (or used on another
+ * account) doesn't give that account any access.
+ */
+export const isKeyForCurrentAccount = () => !!me && me.user_id === UserStore.getCurrentUser()?.id;
+
+/** Whether the logged-in account has at least the given role (owner > dev > mod) */
+export const hasStaffRole = (min: StaffRole) => isKeyForCurrentAccount() && RANKS[me!.role] >= RANKS[min];
 
 export function onStaffChange(listener: () => void) {
     listeners.add(listener);
     return () => void listeners.delete(listener);
 }
 
-/** Re-renders the component when this user's staff role changes */
+/** The logged-in account's staff role (null if none); re-renders the component when it changes */
 export function useStaffRole() {
     const [, rerender] = useReducer(x => x + 1, 0);
     useEffect(() => onStaffChange(rerender), []);
-    return me?.role ?? null;
+    return isKeyForCurrentAccount() ? me!.role : null;
 }
 
 function setIdentity(identity: StaffIdentity | null) {
