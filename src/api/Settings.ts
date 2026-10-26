@@ -37,6 +37,12 @@ export type SettingsPluginUiElements = {
     [id: string]: SettingsPluginUiElement;
 };
 
+export interface CustomPluginSource {
+    name: string;
+    description: string;
+    code: string;
+}
+
 export interface Settings {
     autoUpdate: boolean;
     autoUpdateNotification: boolean,
@@ -71,6 +77,10 @@ export interface Settings {
             isFavorite?: boolean;
             [setting: string]: any;
         };
+    };
+    /** Plugins made in the Plugins tab, see @api/CustomPlugins */
+    customPlugins: {
+        [plugin: string]: CustomPluginSource;
     };
 
     uiElements: {
@@ -109,6 +119,7 @@ const DefaultSettings: Settings = {
     disableMinSize: false,
     nativeTitleBar: false,
     plugins: {},
+    customPlugins: {},
 
     uiElements: {
         chatBarButtons: {},

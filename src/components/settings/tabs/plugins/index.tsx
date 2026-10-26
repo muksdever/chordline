@@ -18,6 +18,7 @@
 
 import "./styles.css";
 
+import { isCustomPlugin } from "@api/CustomPlugins";
 import * as DataStore from "@api/DataStore";
 import { isPluginEnabled } from "@api/PluginManager";
 import { useSettings } from "@api/Settings";
@@ -42,6 +43,7 @@ import { JSX } from "react";
 
 import Plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
+import { CustomPluginsSection } from "./CustomPlugins";
 import { PluginCard } from "./PluginCard";
 import { UIElementsButton } from "./UIElements";
 
@@ -218,7 +220,7 @@ function PluginSettings() {
 
     const showApi = searchValue.status === SearchStatus.API_PLUGINS;
     for (const p of sortedPlugins) {
-        if (p.hidden || (!p.settings && p.name.endsWith("API") && !showApi))
+        if (p.hidden || isCustomPlugin(p.name) || (!p.settings && p.name.endsWith("API") && !showApi))
             continue;
 
         if (!pluginFilter(p)) continue;
@@ -262,6 +264,8 @@ function PluginSettings() {
             <ReloadRequiredCard required={changes.hasChanges} />
 
             <UIElementsButton />
+
+            <CustomPluginsSection onRestartNeeded={(name, key) => changes.handleChange(`${name}.${key}`)} />
 
             <HeadingTertiary className={classes(Margins.top20, Margins.bottom8)}>
                 Filters

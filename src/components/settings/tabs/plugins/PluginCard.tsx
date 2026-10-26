@@ -20,9 +20,11 @@ interface PluginCardProps extends React.HTMLProps<HTMLDivElement> {
     disabled: boolean;
     onRestartNeeded(name: string, key: string): void;
     isNew?: boolean;
+    /** Replaces the default settings / info button */
+    infoButton?: React.ReactNode;
 }
 
-export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, onMouseLeave, isNew }: PluginCardProps) {
+export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, onMouseLeave, isNew, infoButton }: PluginCardProps) {
     const settings = Settings.plugins[plugin.name];
 
     const isEnabled = () => isPluginEnabled(plugin.name);
@@ -85,7 +87,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             disabled={disabled}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
-            infoButton={
+            infoButton={infoButton ??
                 <button
                     role="switch"
                     onClick={() => openPluginModal(plugin, onRestartNeeded)}

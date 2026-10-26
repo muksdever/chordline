@@ -37,6 +37,7 @@ import { debounce } from "@shared/debounce";
 import { StartAt } from "@utils/types";
 import { SettingsRouter } from "@webpack/common";
 
+import { loadCustomPlugins } from "./api/CustomPlugins";
 import { get as dsGet } from "./api/DataStore";
 import { NotificationData, showNotification } from "./api/Notifications";
 import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManager";
@@ -173,6 +174,8 @@ async function init() {
     }
 }
 
+// Custom plugins must be registered before the plugin manager collects patches
+loadCustomPlugins();
 initPluginManager();
 initStyles();
 startAllPlugins(StartAt.Init);

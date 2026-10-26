@@ -91,3 +91,33 @@
     flex-direction: column;
     gap: 1.25em;
 }
+
+.vc-plugins-custom-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.vc-plugins-custom-editor {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 280px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--background-secondary);
+    color: var(--text-default, var(--text-normal));
+    font-family: var(--font-code);
+    font-size: 13px;
+    line-height: 1.5;
+    tab-size: 4;
+    white-space: pre;
+    resize: vertical;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thin-thumb, rgb(255 255 255 / 20%)) transparent;
+}
+
+.vc-plugins-custom-editor:focus {
+    outline: 2px solid var(--focus-primary, var(--brand-500));
+    outline-offset: -1px;
+}

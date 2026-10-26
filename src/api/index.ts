@@ -20,6 +20,7 @@ import * as $Badges from "./Badges";
 import * as $ChatButtons from "./ChatButtons";
 import * as $Commands from "./Commands";
 import * as $ContextMenu from "./ContextMenu";
+import * as $CustomPlugins from "./CustomPlugins";
 import * as $DataStore from "./DataStore";
 import * as $MemberListDecorators from "./MemberListDecorators";
 import * as $MessageAccessories from "./MessageAccessories";
@@ -124,6 +125,10 @@ export const MessageUpdater = $MessageUpdater;
  * An API allowing you to get an user setting
  */
 export const UserSettings = $UserSettings;
+/**
+ * An API for plugins made in the Plugins tab
+ */
+export const CustomPlugins = $CustomPlugins;
 
 /**
  * Don't use this
