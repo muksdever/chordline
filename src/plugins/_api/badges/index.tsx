@@ -26,11 +26,12 @@ import { Heart } from "@components/Heart";
 import { CopyIcon, LinkIcon } from "@components/Icons";
 import DonateButton from "@components/settings/DonateButton";
 import { openContributorModal } from "@components/settings/tabs";
+import { hasStaffRole } from "@utils/chordlineStaff";
 import { Devs } from "@utils/constants";
 import { copyWithToast } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { Margins } from "@utils/margins";
-import { isChordlineDev, shouldShowContributorBadge } from "@utils/misc";
+import { shouldShowContributorBadge } from "@utils/misc";
 import definePlugin from "@utils/types";
 import type { User } from "@vencord/discord-types";
 import { ContextMenuApi, Forms, Menu, Modal, openModal, showToast, UserStore } from "@webpack/common";
@@ -63,7 +64,7 @@ async function loadBadges(noCache = false) {
     ]);
 }
 
-const isCurrentUserDev = () => isChordlineDev(UserStore.getCurrentUser()?.id);
+const isCurrentUserDev = () => hasStaffRole("dev");
 
 const ChordlineBadges: ProfileBadge = {
     id: "chordline_badges",

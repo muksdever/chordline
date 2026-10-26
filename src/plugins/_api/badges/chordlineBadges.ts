@@ -4,19 +4,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import * as DataStore from "@api/DataStore";
+import { saveStaffKey } from "@utils/chordlineStaff";
+import { getStaffKey, isSupabaseConfigured, publicRpc, staffRpc, supabaseRequest as request } from "@utils/chordlineSupabase";
 import { Logger } from "@utils/Logger";
 
 // Chordline badges are stored in Supabase (see supabase/chordline-badges.sql).
 // Everyone reads them with the public anon key. Changes go through admin_* database functions
-// that require a secret admin key, which is stored on the developer's computer only.
-
-// The anon key is meant to be public. Never put the service_role key here.
-export const SUPABASE_URL = "https://koknfyzarizfuxfmxkio.supabase.co";
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtva25meXphcml6ZnV4Zm14a2lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5ODUxNjQsImV4cCI6MjEwODU2MTE2NH0.i90UW8EMdV-8RAmEvs21Qzp_RK5nrpnAbYozsRcPfk4";
-
-// IndexedDB on this device only, never in synced or backed-up settings
-const ADMIN_KEY_STORE_KEY = "Chordline_badgeAdminKey";
+// that require a dev or owner staff key (see @utils/chordlineSupabase).
 
 /** Badge images are resized to this many pixels square before being stored */
 const ICON_SIZE = 96;
@@ -60,7 +54,7 @@ export interface HeldBadge {
     obtainedAt: string;
 }
 
-export const isBadgeBackendConfigured = () => !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
+export const isBadgeBackendConfigured = isSupabaseConfigured;
 
 let badges: ChordlineBadge[] = [];
 let holders: BadgeHolder[] = [];
@@ -78,24 +72,6 @@ export const getBadgeHolders = (badgeId: string) => holders.filter(h => h.badge_
 export const getHeldBadges = (userId: string) => badgesByUser.get(userId) ?? [];
 /** The badges that should show on this user's profile, in order */
 export const getUserChordlineBadges = (userId: string) => getHeldBadges(userId).filter(h => !h.hidden).map(h => h.badge);
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const res = await fetch(SUPABASE_URL + path, {
-        ...init,
-        cache: "no-store",
-        headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            "Content-Type": "application/json",
-            ...init.headers
-        }
-    });
-
-    const text = await res.text();
-    const body = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new Error(body?.message ?? res.statusText);
-    return body as T;
-}
 
 export async function loadChordlineBadges() {
     if (!isBadgeBackendConfigured()) return;
@@ -154,10 +130,7 @@ export async function saveOwnBadgeSettings(userId: string, displayOrder?: string
     rebuildBadgesByUser();
 
     try {
-        await request("/rest/v1/rpc/save_badge_settings", {
-            method: "POST",
-            body: JSON.stringify({ discord_user_id: userId, display_order: order, hidden_badges: [...hidden] })
-        });
+        await publicRpc("save_badge_settings", { discord_user_id: userId, display_order: order, hidden_badges: [...hidden] });
     } catch (e) {
         logger.error("Failed to save badge settings", e);
         await loadChordlineBadges();
@@ -165,26 +138,17 @@ export async function saveOwnBadgeSettings(userId: string, displayOrder?: string
     }
 }
 
-// --- Admin key ---
+// --- Admin actions (need a dev or owner staff key) ---
 
 export async function hasAdminKey() {
-    return !!await DataStore.get<string>(ADMIN_KEY_STORE_KEY);
+    return !!await getStaffKey();
 }
 
-/** Checks the key with the database and saves it on this device if it's valid */
-export async function setAdminKey(key: string) {
-    await request("/rest/v1/rpc/admin_check", { method: "POST", body: JSON.stringify({ admin_key: key }) });
-    await DataStore.set(ADMIN_KEY_STORE_KEY, key);
-}
+/** Saves a staff key on this computer if the database accepts it */
+export const setAdminKey = saveStaffKey;
 
 async function rpc<T = void>(fn: string, args: Record<string, string | number>) {
-    const key = await DataStore.get<string>(ADMIN_KEY_STORE_KEY);
-    if (!key) throw new Error("This computer doesn't have the Chordline admin key yet.");
-
-    const result = await request<T>(`/rest/v1/rpc/${fn}`, {
-        method: "POST",
-        body: JSON.stringify({ admin_key: key, ...args })
-    });
+    const result = await staffRpc<T>(fn, args, "admin_key");
     await loadChordlineBadges();
     return result;
 }

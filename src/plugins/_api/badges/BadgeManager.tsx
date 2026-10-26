@@ -40,7 +40,7 @@ function useBadges() {
 }
 
 /** Gets a user from Discord's cache, fetching them if they aren't loaded */
-function useUser(userId: string) {
+export function useUser(userId: string) {
     const [user] = useAwaiter<User | undefined>(
         async () => UserStore.getUser(userId) ?? await UserUtils.getUser(userId).catch(() => undefined),
         { fallbackValue: UserStore.getUser(userId), deps: [userId] }
@@ -48,9 +48,9 @@ function useUser(userId: string) {
     return user;
 }
 
-const displayName = (user: User) => user.globalName || user.username;
+export const displayName = (user: User) => user.globalName || user.username;
 
-function searchUsers(query: string) {
+export function searchUsers(query: string) {
     const q = query.trim().toLowerCase();
     if (!q) return [];
 
@@ -164,7 +164,7 @@ function BadgeForm({ initial, submitText, onSubmit, onCancel }: {
     );
 }
 
-function UserLine({ user, userId, children }: React.PropsWithChildren<{ user?: User; userId: string; }>) {
+export function UserLine({ user, userId, children }: React.PropsWithChildren<{ user?: User; userId: string; }>) {
     return (
         <div className={cl("user")}>
             {user

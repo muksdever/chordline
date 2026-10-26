@@ -1,0 +1,469 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+import "./styles.css";
+
+import { Button } from "@components/Button";
+import { Paragraph } from "@components/Paragraph";
+import { displayName, runWithToast, searchUsers, USER_ID_REGEX, UserLine, useUser } from "@plugins/_api/badges/BadgeManager";
+import { forgetStaffKey, getStaffIdentity, saveStaffKey, STAFF_ROLE_NAMES, StaffRole, useStaffRole } from "@utils/chordlineStaff";
+import { classNameFactory } from "@utils/css";
+import { copyWithToast } from "@utils/discord";
+import { Margins } from "@utils/margins";
+import { classes } from "@utils/misc";
+import { RenderModalProps, User } from "@vencord/discord-types";
+import { Forms, Modal, NavigationRouter, openModal, showToast, TextInput, useEffect, useMemo, useState } from "@webpack/common";
+
+import { addBan, Ban, BAN_DURATIONS, createReport, dismissReport, listBans, listReports, listStaff, removeBan, removeStaff, Report, setStaff, StaffMember, timeAgo } from "./api";
+
+const cl = classNameFactory("vc-chordline-staff-");
+
+const toast = (text: string, variant: "success" | "critical" = "critical") => showToast({ text, variant, position: "bottom" });
+
+function Name({ userId }: { userId: string; }) {
+    const user = useUser(userId);
+    return <>{user ? displayName(user) : userId}</>;
+}
+
+function Person({ userId, children }: React.PropsWithChildren<{ userId: string; }>) {
+    const user = useUser(userId);
+    return <UserLine user={user} userId={userId}>{children}</UserLine>;
+}
+
+function RoleChip({ role }: { role: StaffRole; }) {
+    return <span className={classes(cl("role"), cl(`role-${role}`))}>{STAFF_ROLE_NAMES[role]}</span>;
+}
+
+/** Search box that lets you pick a person by name or user ID */
+function PersonPicker({ value, onChange }: { value: string | null; onChange(userId: string | null): void; }) {
+    const [query, setQuery] = useState("");
+    const trimmed = query.trim();
+    const results = useMemo(() => searchUsers(trimmed), [trimmed]);
+    const isId = USER_ID_REGEX.test(trimmed) && !results.some(u => u.id === trimmed);
+
+    if (value) {
+        return (
+            <Person userId={value}>
+                <Button variant="secondary" size="small" onClick={() => onChange(null)}>Change</Button>
+            </Person>
+        );
+    }
+
+    return (
+        <>
+            <TextInput value={query} onChange={setQuery} placeholder="Search by name, or paste a user ID" autoFocus />
+            {trimmed && (
+                <div className={classes(cl("list"), Margins.top8)}>
+                    {results.map((u: User) => (
+                        <UserLine key={u.id} user={u} userId={u.id}>
+                            <Button size="small" onClick={() => onChange(u.id)}>Select</Button>
+                        </UserLine>
+                    ))}
+                    {isId && <Person userId={trimmed}><Button size="small" onClick={() => onChange(trimmed)}>Select</Button></Person>}
+                    {!results.length && !isId && <Paragraph>Nobody found. Try their username or paste their user ID.</Paragraph>}
+                </div>
+            )}
+        </>
+    );
+}
+
+function ReasonBox({ value, onChange, placeholder }: { value: string; onChange(v: string): void; placeholder: string; }) {
+    return (
+        <textarea
+            className={cl("reason")}
+            value={value}
+            maxLength={1000}
+            placeholder={placeholder}
+            onChange={e => onChange(e.currentTarget.value)}
+        />
+    );
+}
+
+// --- Report (mods and up) ---
+
+interface ReportTarget {
+    userId: string;
+    messageContent?: string;
+    messageLink?: string;
+}
+
+function ReportModal({ target, ...props }: RenderModalProps & { target: ReportTarget; }) {
+    const [reason, setReason] = useState("");
+    const [busy, setBusy] = useState(false);
+
+    async function submit() {
+        if (!reason.trim()) return toast("Write a reason for the report");
+        setBusy(true);
+        const ok = await runWithToast(() => createReport(target.userId, reason.trim(), target.messageContent, target.messageLink), "Report sent to Chordline staff");
+        setBusy(false);
+        if (ok) props.onClose();
+    }
+
+    return (
+        <Modal
+            {...props}
+            size="md"
+            title={target.messageLink ? "Report Message" : "Report User"}
+            subtitle="This goes to Chordline's owner and devs."
+            actions={[
+                { text: busy ? "Sending..." : "Send Report", variant: "critical-primary", onClick: submit, disabled: busy },
+                { text: "Cancel", variant: "secondary", onClick: props.onClose },
+            ]}
+        >
+            <div className={cl("content")}>
+                <Person userId={target.userId} />
+                {target.messageContent && <blockquote className={classes(cl("quote"), Margins.top8)}>{target.messageContent}</blockquote>}
+                <Forms.FormTitle tag="h5" className={Margins.top16}>Reason</Forms.FormTitle>
+                <ReasonBox value={reason} onChange={setReason} placeholder="What did they do?" />
+            </div>
+        </Modal>
+    );
+}
+
+export const openReportModal = (target: ReportTarget) => openModal(props => <ReportModal {...props} target={target} />);
+
+// --- Ban (devs and up) ---
+
+function BanModal({ userId: initialUser, reason: initialReason, reportId, onDone, ...props }: RenderModalProps & {
+    userId?: string;
+    reason?: string;
+    reportId?: string;
+    onDone?(): void;
+}) {
+    const [userId, setUserId] = useState<string | null>(initialUser ?? null);
+    const [reason, setReason] = useState(initialReason ?? "");
+    const [duration, setDuration] = useState<number | null>(BAN_DURATIONS[1].minutes);
+    const [busy, setBusy] = useState(false);
+
+    async function submit() {
+        if (!userId) return toast("Pick who to ban");
+        if (!reason.trim()) return toast("Write a reason for the ban");
+        setBusy(true);
+        const ok = await runWithToast(() => addBan(userId, reason.trim(), duration, reportId), "Banned from Chordline");
+        setBusy(false);
+        if (ok) {
+            onDone?.();
+            props.onClose();
+        }
+    }
+
+    return (
+        <Modal
+            {...props}
+            size="md"
+            title="Ban from Chordline"
+            subtitle="Their whole Discord is blocked by a ban screen until the ban ends or they uninstall Chordline."
+            actions={[
+                { text: busy ? "Banning..." : "Ban", variant: "critical-primary", onClick: submit, disabled: busy },
+                { text: "Cancel", variant: "secondary", onClick: props.onClose },
+            ]}
+        >
+            <div className={cl("content")}>
+                <Forms.FormTitle tag="h5">Who</Forms.FormTitle>
+                <PersonPicker value={userId} onChange={setUserId} />
+
+                <Forms.FormTitle tag="h5" className={Margins.top16}>Reason (they'll see this)</Forms.FormTitle>
+                <ReasonBox value={reason} onChange={setReason} placeholder="Why are they being banned?" />
+
+                <Forms.FormTitle tag="h5" className={Margins.top16}>How long</Forms.FormTitle>
+                <div className={cl("chips")}>
+                    {BAN_DURATIONS.map(d => (
+                        <button
+                            key={d.label}
+                            className={classes(cl("chip"), duration === d.minutes && cl("chip-selected"))}
+                            onClick={() => setDuration(d.minutes)}
+                        >
+                            {d.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
+const openBanModal = (options: { userId?: string; reason?: string; reportId?: string; onDone?(): void; }) =>
+    openModal(props => <BanModal {...props} {...options} />);
+
+/** Loads a list from the database, with a reload function */
+function useList<T>(load: () => Promise<T[]>) {
+    const [items, setItems] = useState<T[] | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const reload = () => {
+        load()
+            .then(list => { setItems(list ?? []); setError(null); })
+            .catch(e => setError(e instanceof Error ? e.message : String(e)));
+    };
+    useEffect(reload, []);
+
+    return { items, setItems, error, reload };
+}
+
+function ListBody<T>({ items, error, empty, render }: { items: T[] | null; error: string | null; empty: string; render(item: T): React.ReactNode; }) {
+    if (error) return <Paragraph className={cl("error")}>{error}</Paragraph>;
+    if (!items) return <Paragraph>Loading...</Paragraph>;
+    if (!items.length) return <Paragraph>{empty}</Paragraph>;
+    return <div className={cl("list")}>{items.map(render)}</div>;
+}
+
+// --- Reports (devs and up) ---
+
+function ReportCard({ report, onHandled, onClose }: { report: Report; onHandled(): void; onClose(): void; }) {
+    return (
+        <div className={cl("card")}>
+            <Person userId={report.reported_user_id}>
+                <Button
+                    variant="dangerPrimary"
+                    size="small"
+                    onClick={() => openBanModal({ userId: report.reported_user_id, reason: report.reason, reportId: report.id, onDone: onHandled })}
+                >
+                    Ban
+                </Button>
+                <Button
+                    variant="secondary"
+                    size="small"
+                    onClick={() => runWithToast(() => dismissReport(report.id), "Report dismissed").then(ok => ok && onHandled())}
+                >
+                    Dismiss
+                </Button>
+            </Person>
+
+            <div className={cl("meta")}>
+                Reported by <Name userId={report.reporter_id} /> · {timeAgo(report.created_at)}
+            </div>
+            <div className={cl("text")}>{report.reason}</div>
+
+            {report.message_content && <blockquote className={cl("quote")}>{report.message_content}</blockquote>}
+            {report.message_link && (
+                <Button
+                    variant="link"
+                    size="small"
+                    className={Margins.top8}
+                    onClick={() => { onClose(); NavigationRouter.transitionTo(new URL(report.message_link!).pathname); }}
+                >
+                    Go to message
+                </Button>
+            )}
+        </div>
+    );
+}
+
+function ReportsModal(props: RenderModalProps) {
+    const { items, error, reload } = useList(listReports);
+
+    return (
+        <Modal
+            {...props}
+            size="lg"
+            title={`Reports${items ? ` (${items.length})` : ""}`}
+            subtitle="Open reports from Chordline mods."
+            actions={[
+                { text: "Done", variant: "primary", onClick: props.onClose },
+                { text: "Refresh", variant: "secondary", onClick: reload },
+            ]}
+        >
+            <div className={cl("content")}>
+                <ListBody
+                    items={items}
+                    error={error}
+                    empty="No open reports. All clear!"
+                    render={(r: Report) => (
+                        <ReportCard
+                            key={r.id}
+                            report={r}
+                            onClose={props.onClose}
+                            onHandled={reload}
+                        />
+                    )}
+                />
+            </div>
+        </Modal>
+    );
+}
+
+export const openReportsModal = () => openModal(props => <ReportsModal {...props} />);
+
+// --- Bans (devs and up) ---
+
+function banLength(ban: Ban) {
+    if (!ban.expires_at) return "Permanent";
+    return `Ends ${new Date(ban.expires_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
+}
+
+function BansModal(props: RenderModalProps) {
+    const { items, setItems, error, reload } = useList(listBans);
+
+    return (
+        <Modal
+            {...props}
+            size="lg"
+            title={`Bans${items ? ` (${items.length})` : ""}`}
+            subtitle="People who are banned from Chordline right now."
+            actions={[
+                { text: "Done", variant: "primary", onClick: props.onClose },
+                { text: "Add Ban", variant: "secondary", onClick: () => openBanModal({ onDone: reload }) },
+            ]}
+        >
+            <div className={cl("content")}>
+                <ListBody
+                    items={items}
+                    error={error}
+                    empty="Nobody is banned."
+                    render={(b: Ban) => (
+                        <div key={b.user_id} className={cl("card")}>
+                            <Person userId={b.user_id}>
+                                <Button
+                                    variant="secondary"
+                                    size="small"
+                                    onClick={() => runWithToast(() => removeBan(b.user_id), "Ban removed").then(ok => ok && setItems(list => list?.filter(x => x.user_id !== b.user_id) ?? null))}
+                                >
+                                    Remove Ban
+                                </Button>
+                            </Person>
+                            <div className={cl("meta")}>
+                                {banLength(b)} · banned by <Name userId={b.banned_by} /> {timeAgo(b.created_at)}
+                            </div>
+                            <div className={cl("text")}>{b.reason}</div>
+                        </div>
+                    )}
+                />
+            </div>
+        </Modal>
+    );
+}
+
+export const openBansModal = () => openModal(props => <BansModal {...props} />);
+
+// --- Staff (owner only) ---
+
+function KeyReveal({ userId, staffKey }: { userId: string; staffKey: string; }) {
+    return (
+        <div className={classes(cl("card"), cl("key-card"))}>
+            <Forms.FormTitle tag="h5">Staff key for <Name userId={userId} /></Forms.FormTitle>
+            <div className={cl("row")}>
+                <code className={cl("key")}>{staffKey}</code>
+                <Button size="small" onClick={() => copyWithToast(staffKey, "Staff key copied")}>Copy</Button>
+            </div>
+            <Paragraph className={Margins.top8}>
+                Send this to them privately. They paste it in Chordline Settings → Chordline Staff.
+                It won't be shown again; use New Key if it gets lost or leaked.
+            </Paragraph>
+        </div>
+    );
+}
+
+function StaffModal(props: RenderModalProps) {
+    const { items, error, reload } = useList(listStaff);
+    const [newUser, setNewUser] = useState<string | null>(null);
+    const [newRole, setNewRole] = useState<"dev" | "mod">("mod");
+    const [revealed, setRevealed] = useState<{ userId: string; staffKey: string; } | null>(null);
+
+    async function assign(userId: string, role: "dev" | "mod") {
+        try {
+            const staffKey = await setStaff(userId, role);
+            setRevealed({ userId, staffKey });
+            setNewUser(null);
+            reload();
+        } catch (e) {
+            toast(e instanceof Error ? e.message : String(e));
+        }
+    }
+
+    return (
+        <Modal
+            {...props}
+            size="lg"
+            title="Chordline Staff"
+            subtitle="Devs can do everything you can except manage staff. Mods can report users and messages."
+            actions={[{ text: "Done", variant: "primary", onClick: props.onClose }]}
+        >
+            <div className={cl("content")}>
+                {revealed && <KeyReveal {...revealed} />}
+
+                <Forms.FormTitle tag="h5">Add Staff</Forms.FormTitle>
+                <PersonPicker value={newUser} onChange={setNewUser} />
+                {newUser && (
+                    <div className={classes(cl("row"), Margins.top8)}>
+                        <div className={cl("chips")}>
+                            {(["mod", "dev"] as const).map(r => (
+                                <button key={r} className={classes(cl("chip"), newRole === r && cl("chip-selected"))} onClick={() => setNewRole(r)}>
+                                    {STAFF_ROLE_NAMES[r]}
+                                </button>
+                            ))}
+                        </div>
+                        <Button size="small" onClick={() => assign(newUser, newRole)}>Add as {STAFF_ROLE_NAMES[newRole]}</Button>
+                    </div>
+                )}
+
+                <Forms.FormTitle tag="h5" className={Margins.top20}>Team</Forms.FormTitle>
+                <ListBody
+                    items={items}
+                    error={error}
+                    empty="No staff yet."
+                    render={(m: StaffMember) => (
+                        <Person key={m.user_id} userId={m.user_id}>
+                            <RoleChip role={m.role} />
+                            {m.role !== "owner" && (
+                                <>
+                                    <Button variant="secondary" size="small" onClick={() => assign(m.user_id, m.role === "dev" ? "mod" : "dev")}>
+                                        Make {m.role === "dev" ? "Mod" : "Dev"}
+                                    </Button>
+                                    <Button variant="secondary" size="small" onClick={() => assign(m.user_id, m.role as "dev" | "mod")}>New Key</Button>
+                                    <Button
+                                        variant="dangerSecondary"
+                                        size="small"
+                                        onClick={() => runWithToast(() => removeStaff(m.user_id), "Removed from staff").then(ok => ok && reload())}
+                                    >
+                                        Remove
+                                    </Button>
+                                </>
+                            )}
+                        </Person>
+                    )}
+                />
+            </div>
+        </Modal>
+    );
+}
+
+export const openStaffModal = () => openModal(props => <StaffModal {...props} />);
+
+// --- Staff key entry, shown in the Chordline settings tab ---
+
+export function StaffKeySection() {
+    const role = useStaffRole();
+    const [key, setKey] = useState("");
+    const [busy, setBusy] = useState(false);
+
+    if (role) {
+        return (
+            <div className={cl("row")}>
+                <Paragraph className={cl("grow")}>
+                    You're on Chordline staff as <RoleChip role={role} />
+                    {getStaffIdentity()?.user_id && <> (<Name userId={getStaffIdentity()!.user_id} />)</>}
+                </Paragraph>
+                <Button variant="dangerSecondary" size="small" onClick={() => forgetStaffKey()}>Remove Key</Button>
+            </div>
+        );
+    }
+
+    async function save() {
+        setBusy(true);
+        if (await runWithToast(() => saveStaffKey(key.trim()), "Staff key saved")) setKey("");
+        setBusy(false);
+    }
+
+    return (
+        <>
+            <Paragraph className={Margins.bottom8}>If you're Chordline staff, paste the staff key you were given.</Paragraph>
+            <div className={cl("row")}>
+                <TextInput value={key} onChange={setKey} type="password" placeholder="chordline_staff_..." className={cl("grow")} />
+                <Button size="small" disabled={busy || !key.trim()} onClick={save}>Save</Button>
+            </div>
+        </>
+    );
+}

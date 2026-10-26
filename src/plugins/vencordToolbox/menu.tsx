@@ -8,11 +8,11 @@ import { openNotificationLogModal } from "@api/Notifications/notificationLog";
 import { isPluginEnabled, isSettingDisabled, isSettingHidden, plugins } from "@api/PluginManager";
 import { Settings, useSettings } from "@api/Settings";
 import { openPluginModal, openSettingsTabModal, PluginsTab, ThemesTab } from "@components/settings";
-import { isChordlineDev } from "@utils/misc";
+import { hasStaffRole } from "@utils/chordlineStaff";
 import { useAwaiter } from "@utils/react";
 import { wordsFromCamel, wordsToTitle } from "@utils/text";
 import { OptionType, Plugin } from "@utils/types";
-import { Menu, showToast, useMemo, UserStore, useState } from "@webpack/common";
+import { Menu, showToast, useMemo, useState } from "@webpack/common";
 import type { ReactNode } from "react";
 
 import { settings } from ".";
@@ -247,7 +247,7 @@ export function buildThemeMenuEntries() {
 function buildCustomPluginEntries() {
     const pluginEntries = [] as { plugin: Plugin, node: ReactNode; }[];
     // Developers get a clickable plugin name that opens its settings, instead of a plain group label
-    const isDev = isChordlineDev(UserStore.getCurrentUser()?.id);
+    const isDev = hasStaffRole("dev");
 
     for (const plugin of Object.values(plugins)) {
         if (plugin.toolboxActions && isPluginEnabled(plugin.name)) {
