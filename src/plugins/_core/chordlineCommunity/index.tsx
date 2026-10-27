@@ -8,18 +8,18 @@ import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { isSupabaseConfigured } from "@utils/chordlineSupabase";
 import definePlugin, { OptionType } from "@utils/types";
-import { Menu } from "@webpack/common";
+import { Menu, PresenceStore, useStateFromStores } from "@webpack/common";
 import virtualMerge from "virtual-merge";
 
-import { getProfileBanner, getProfileExtras, loadAnnouncements, loadChordlineUsers, loadProfileExtras, pingChordline, usesChordline } from "./data";
+import { getProfileBanner, getProfileExtras, loadAnnouncements, loadProfileExtras, setChordlineActivity, usesChordline } from "./data";
 import { ChordlineMark, notifyNewAnnouncement, openAnnouncements, showWhatsNewIfUpdated } from "./windows";
 
 export const settings = definePluginSettings({
     showThatIUseChordline: {
         type: OptionType.BOOLEAN,
-        description: "Let other Chordline users see the Chordline icon next to your name",
+        description: "Show \"Playing Chordline\" on your Discord status while Chordline is open, so other Chordline users see the Chordline icon next to your name",
         default: true,
-        onChange: (show: boolean) => pingChordline(show)
+        onChange: (show: boolean) => setChordlineActivity(show)
     },
     showChordlineIcons: {
         type: OptionType.BOOLEAN,
@@ -50,16 +50,18 @@ function onFocus() {
 }
 
 function startUp() {
+    setChordlineActivity(settings.store.showThatIUseChordline);
     if (!isSupabaseConfigured()) return;
-    pingChordline(settings.store.showThatIUseChordline);
-    loadChordlineUsers();
     loadProfileExtras();
     refreshAnnouncements();
 }
 
-const Mark = ErrorBoundary.wrap(({ userId }: { userId?: string; }) =>
-    userId && settings.store.showChordlineIcons && usesChordline(userId) ? <ChordlineMark /> : null
-, { noop: true });
+function Mark({ userId }: { userId?: string; }) {
+    // Updates live as people open and close Chordline
+    const uses = useStateFromStores([PresenceStore], () => !!userId && usesChordline(userId));
+    return uses && settings.store.showChordlineIcons ? <ChordlineMark /> : null;
+}
+const SafeMark = ErrorBoundary.wrap(Mark, { noop: true });
 
 export default definePlugin({
     name: "ChordlineCommunity",
@@ -103,8 +105,8 @@ export default definePlugin({
         return virtualMerge(profile, { premiumType: 2, themeColors: [primary, accent] });
     },
 
-    renderMessageDecoration: props => <Mark userId={props.message?.author?.id} />,
-    renderMemberListDecorator: props => <Mark userId={props.user?.id} />,
+    renderMessageDecoration: props => <SafeMark userId={props.message?.author?.id} />,
+    renderMemberListDecorator: props => <SafeMark userId={props.user?.id} />,
 
     toolboxActions: () => (
         <Menu.MenuItem id="vc-chordline-announcements" label="Announcements" action={openAnnouncements} />
@@ -127,14 +129,13 @@ export default definePlugin({
 
         timers.push(
             setInterval(refreshAnnouncements, MINUTE),
-            setInterval(loadChordlineUsers, 5 * MINUTE),
-            setInterval(loadProfileExtras, 5 * MINUTE),
-            setInterval(() => pingChordline(settings.store.showThatIUseChordline), 30 * MINUTE)
+            setInterval(loadProfileExtras, 5 * MINUTE)
         );
         window.addEventListener("focus", onFocus);
     },
 
     stop() {
+        setChordlineActivity(false);
         timers.splice(0).forEach(clearInterval);
         window.removeEventListener("focus", onFocus);
     }

@@ -1,18 +1,13 @@
--- Chordline community features: "uses Chordline" indicator, profile extras and announcements
+-- Chordline community features: profile extras and announcements
 -- Run this AFTER chordline-staff.sql: Dashboard -> SQL Editor -> New query -> paste -> Run.
 -- It is safe to run again.
 --
 -- Like staff, people are identified by the Discord user ID their Chordline sends, which the database can't verify.
 
--- Who uses Chordline (each Chordline checks in now and then)
-create table if not exists public.chordline_users (
-    user_id text primary key check (user_id ~ '^[0-9]{15,21}$'),
-    client_version text,
-    -- people can turn off showing that they use Chordline
-    visible boolean not null default true,
-    first_seen timestamptz not null default now(),
-    last_seen timestamptz not null default now()
-);
+-- "Uses Chordline" now comes from Discord itself ("Playing Chordline" activity), so the old check-in table is removed
+drop function if exists public.chordline_ping(text, text, boolean);
+drop function if exists public.chordline_users_list();
+drop table if exists public.chordline_users;
 
 -- Custom profile banner and colors, shown to other Chordline users
 create table if not exists public.profile_extras (
@@ -32,35 +27,8 @@ create table if not exists public.announcements (
     created_at timestamptz not null default now()
 );
 
-alter table public.chordline_users enable row level security;
 alter table public.profile_extras enable row level security;
 alter table public.announcements enable row level security;
-
--- "Uses Chordline"
-
-create or replace function public.chordline_ping(caller_id text, version text, show boolean)
-returns void
-language sql
-security definer
-set search_path = ''
-as $$
-    insert into public.chordline_users (user_id, client_version, visible)
-    values (caller_id, left(version, 40), show)
-    on conflict (user_id) do update
-        set client_version = excluded.client_version, visible = excluded.visible, last_seen = now();
-$$;
-
--- Everyone who used Chordline in the last 30 days and is happy to be shown
-create or replace function public.chordline_users_list()
-returns setof text
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-    select user_id from public.chordline_users
-    where visible and last_seen > now() - interval '30 days';
-$$;
 
 -- Profile extras
 
@@ -146,8 +114,6 @@ end;
 $$;
 
 grant execute on function
-    public.chordline_ping(text, text, boolean),
-    public.chordline_users_list(),
     public.profile_extras_list(),
     public.profile_banner(text),
     public.save_profile_extras(text, text, integer, integer),

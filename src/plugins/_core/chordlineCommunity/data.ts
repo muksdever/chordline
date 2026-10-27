@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { gitHash } from "@shared/vencordUserAgent";
-import { isSupabaseConfigured, publicRpc, staffRpc } from "@utils/chordlineSupabase";
+import { publicRpc, staffRpc } from "@utils/chordlineSupabase";
 import { Logger } from "@utils/Logger";
-import { UserStore } from "@webpack/common";
+import { FluxDispatcher, PresenceStore } from "@webpack/common";
 
 // Data for Chordline's community features (see supabase/chordline-community.sql)
 
@@ -21,30 +20,33 @@ export function onCommunityChange(listener: () => void) {
 const emitChange = () => listeners.forEach(l => l());
 
 // --- "Uses Chordline" ---
+// While Chordline is running it shows "Playing Chordline" as a Discord activity. Discord shares that live,
+// so other Chordline users can see who's using it right now. No database involved.
 
-let chordlineUsers = new Set<string>();
+export const CHORDLINE_ACTIVITY_NAME = "Chordline";
+const ACTIVITY_SOCKET = "ChordlineActivity";
+const startedAt = Date.now();
 
-export const usesChordline = (userId: string) => chordlineUsers.has(userId);
-
-/** Tells the database this account uses Chordline (or that it shouldn't be shown) */
-export async function pingChordline(show: boolean) {
-    const userId = UserStore.getCurrentUser()?.id;
-    if (!userId || !isSupabaseConfigured()) return;
-    await publicRpc("chordline_ping", { caller_id: userId, version: gitHash, show })
-        .catch(e => logger.warn("Check-in failed", e));
+export function setChordlineActivity(show: boolean) {
+    FluxDispatcher.dispatch({
+        type: "LOCAL_ACTIVITY_UPDATE",
+        socketId: ACTIVITY_SOCKET,
+        activity: show
+            ? {
+                application_id: "0",
+                name: CHORDLINE_ACTIVITY_NAME,
+                type: 0,
+                state: "Your Discord, your way",
+                timestamps: { start: startedAt },
+                flags: 1
+            }
+            : null
+    });
 }
 
-export async function loadChordlineUsers() {
-    try {
-        const ids = await publicRpc<string[]>("chordline_users_list", {});
-        const next = new Set(ids);
-        if (next.size === chordlineUsers.size && ids.every(id => chordlineUsers.has(id))) return;
-        chordlineUsers = next;
-        emitChange();
-    } catch (e) {
-        logger.warn("Couldn't load Chordline users", e);
-    }
-}
+/** Whether this person has Chordline open right now (from their live Discord activity) */
+export const usesChordline = (userId: string) =>
+    PresenceStore.getActivities(userId)?.some(a => a.type === 0 && a.name === CHORDLINE_ACTIVITY_NAME) ?? false;
 
 // --- Profile extras ---
 
