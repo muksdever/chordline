@@ -32,7 +32,7 @@ function useCommunityData() {
 
 const formatDate = (date: string) => new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
-// --- "Uses Chordline" mark next to names ---
+// --- "Uses Chordline" icon next to names ---
 
 export function ChordlineMark() {
     return (

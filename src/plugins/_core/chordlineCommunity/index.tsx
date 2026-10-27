@@ -4,22 +4,25 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { addProfileBadge, BadgePosition, ProfileBadge, removeProfileBadge } from "@api/Badges";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { CHORDLINE_LOGO_SVG, svgToDataUrl } from "@shared/chordlineLogo";
 import { isSupabaseConfigured } from "@utils/chordlineSupabase";
 import definePlugin, { OptionType } from "@utils/types";
-import { Menu, PresenceStore, useStateFromStores } from "@webpack/common";
+import { findStoreLazy } from "@webpack";
+import { FluxDispatcher, Menu, UserStore, useStateFromStores } from "@webpack/common";
 import virtualMerge from "virtual-merge";
 
-import { getProfileBanner, getProfileExtras, loadAnnouncements, loadProfileExtras, setChordlineActivity, usesChordline } from "./data";
+import { getProfileBanner, getProfileExtras, hasChordlineMark, loadAnnouncements, loadProfileExtras, syncMyChordlineMark } from "./data";
 import { ChordlineMark, notifyNewAnnouncement, openAnnouncements, showWhatsNewIfUpdated } from "./windows";
 
 export const settings = definePluginSettings({
     showThatIUseChordline: {
         type: OptionType.BOOLEAN,
-        description: "Show \"Playing Chordline\" on your Discord status while Chordline is open, so other Chordline users see the Chordline icon next to your name",
+        description: "Add an invisible mark to your About Me so other Chordline users see the Chordline icon next to your name (nobody else can see it)",
         default: true,
-        onChange: (show: boolean) => setChordlineActivity(show)
+        onChange: (show: boolean) => syncMyChordlineMark(show)
     },
     showChordlineIcons: {
         type: OptionType.BOOLEAN,
@@ -37,6 +40,28 @@ const MINUTE = 60 * 1000;
 const timers: ReturnType<typeof setInterval>[] = [];
 let lastFocusRefresh = 0;
 let whatsNewChecked = false;
+/** Which account we last added the About Me mark for, so it's done once per account per session */
+let markSyncedFor: string | null = null;
+
+const UserProfileStore = findStoreLazy("UserProfileStore");
+
+/** Whether this person's About Me has the invisible Chordline mark (only known once Discord has loaded their profile) */
+const usesChordline = (userId: string) => hasChordlineMark(UserProfileStore.getUserProfile(userId)?.bio);
+
+function Mark({ userId }: { userId?: string; }) {
+    const uses = useStateFromStores([UserProfileStore], () => !!userId && usesChordline(userId));
+    return uses && settings.store.showChordlineIcons ? <ChordlineMark /> : null;
+}
+const SafeMark = ErrorBoundary.wrap(Mark, { noop: true });
+
+const UsesChordlineBadge: ProfileBadge = {
+    id: "chordline_uses",
+    description: "Uses Chordline",
+    iconSrc: svgToDataUrl(CHORDLINE_LOGO_SVG),
+    position: BadgePosition.END,
+    props: { style: { borderRadius: "5px", transform: "scale(0.9)" } },
+    shouldShow: ({ userId }) => settings.store.showChordlineIcons && usesChordline(userId)
+};
 
 async function refreshAnnouncements() {
     await loadAnnouncements();
@@ -50,18 +75,19 @@ function onFocus() {
 }
 
 function startUp() {
-    setChordlineActivity(settings.store.showThatIUseChordline);
+    // A previous version showed "Playing Chordline"; make sure that status is gone
+    FluxDispatcher.dispatch({ type: "LOCAL_ACTIVITY_UPDATE", socketId: "ChordlineActivity", activity: null });
+
+    const me = UserStore.getCurrentUser()?.id;
+    if (me && markSyncedFor !== me) {
+        markSyncedFor = me;
+        syncMyChordlineMark(settings.store.showThatIUseChordline);
+    }
+
     if (!isSupabaseConfigured()) return;
     loadProfileExtras();
     refreshAnnouncements();
 }
-
-function Mark({ userId }: { userId?: string; }) {
-    // Updates live as people open and close Chordline
-    const uses = useStateFromStores([PresenceStore], () => !!userId && usesChordline(userId));
-    return uses && settings.store.showChordlineIcons ? <ChordlineMark /> : null;
-}
-const SafeMark = ErrorBoundary.wrap(Mark, { noop: true });
 
 export default definePlugin({
     name: "ChordlineCommunity",
@@ -125,6 +151,7 @@ export default definePlugin({
     },
 
     start() {
+        addProfileBadge(UsesChordlineBadge);
         startUp();
 
         timers.push(
@@ -135,7 +162,7 @@ export default definePlugin({
     },
 
     stop() {
-        setChordlineActivity(false);
+        removeProfileBadge(UsesChordlineBadge);
         timers.splice(0).forEach(clearInterval);
         window.removeEventListener("focus", onFocus);
     }

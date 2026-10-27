@@ -6,7 +6,7 @@
 
 import { publicRpc, staffRpc } from "@utils/chordlineSupabase";
 import { Logger } from "@utils/Logger";
-import { FluxDispatcher, PresenceStore } from "@webpack/common";
+import { RestAPI, UserStore } from "@webpack/common";
 
 // Data for Chordline's community features (see supabase/chordline-community.sql)
 
@@ -19,34 +19,40 @@ export function onCommunityChange(listener: () => void) {
 }
 const emitChange = () => listeners.forEach(l => l());
 
-// --- "Uses Chordline" ---
-// While Chordline is running it shows "Playing Chordline" as a Discord activity. Discord shares that live,
-// so other Chordline users can see who's using it right now. No database involved.
+// --- "Uses Chordline" mark ---
+// Chordline adds a few invisible characters ("3y3" tag characters, like FakeProfileThemes uses) to the end of your
+// About Me. Discord doesn't display them, so only other Chordline users can tell. Nothing is stored in the database.
 
-export const CHORDLINE_ACTIVITY_NAME = "Chordline";
-const ACTIVITY_SOCKET = "ChordlineActivity";
-const startedAt = Date.now();
+/** Invisible version of "~cl" */
+const CHORDLINE_MARK = String.fromCodePoint(0xe007e, 0xe0063, 0xe006c);
+const BIO_MAX_LENGTH = 190;
 
-export function setChordlineActivity(show: boolean) {
-    FluxDispatcher.dispatch({
-        type: "LOCAL_ACTIVITY_UPDATE",
-        socketId: ACTIVITY_SOCKET,
-        activity: show
-            ? {
-                application_id: "0",
-                name: CHORDLINE_ACTIVITY_NAME,
-                type: 0,
-                state: "Your Discord, your way",
-                timestamps: { start: startedAt },
-                flags: 1
-            }
-            : null
-    });
+export const hasChordlineMark = (bio: string | null | undefined) => !!bio?.includes(CHORDLINE_MARK);
+
+/** Adds or removes the invisible mark in the logged-in user's About Me */
+export async function syncMyChordlineMark(enabled: boolean) {
+    const me = UserStore.getCurrentUser();
+    if (!me) return;
+
+    try {
+        const { body } = await RestAPI.get({ url: `/users/${me.id}/profile` });
+        const bio: string = body?.user_profile?.bio ?? "";
+        const has = hasChordlineMark(bio);
+
+        let next: string | null = null;
+        if (enabled && !has) {
+            // Don't push the About Me over Discord's length limit
+            if (bio.length + CHORDLINE_MARK.length > BIO_MAX_LENGTH) return;
+            next = bio + CHORDLINE_MARK;
+        } else if (!enabled && has) {
+            next = bio.replaceAll(CHORDLINE_MARK, "");
+        }
+
+        if (next != null) await RestAPI.patch({ url: "/users/@me/profile", body: { bio: next } });
+    } catch (e) {
+        logger.warn("Couldn't update the Chordline mark in About Me", e);
+    }
 }
-
-/** Whether this person has Chordline open right now (from their live Discord activity) */
-export const usesChordline = (userId: string) =>
-    PresenceStore.getActivities(userId)?.some(a => a.type === 0 && a.name === CHORDLINE_ACTIVITY_NAME) ?? false;
 
 // --- Profile extras ---
 
