@@ -1,0 +1,172 @@
+.vc-chordline-community-mark {
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    border-radius: 4px;
+    vertical-align: -2px;
+}
+
+.vc-chordline-community-content {
+    padding-bottom: 16px;
+}
+
+.vc-chordline-community-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.vc-chordline-community-grow {
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-chordline-community-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vc-chordline-community-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--background-base-lower, var(--background-secondary));
+}
+
+.vc-chordline-community-composer {
+    margin-bottom: 16px;
+    border: 1px solid #8b5cf666;
+}
+
+.vc-chordline-community-title {
+    color: var(--header-primary, var(--text-default));
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.vc-chordline-community-meta {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vc-chordline-community-body {
+    color: var(--text-default, var(--text-normal));
+    font-size: 14px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.vc-chordline-community-textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 90px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 8px;
+    background: var(--background-base-lowest, var(--background-tertiary));
+    color: var(--text-default, var(--text-normal));
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.vc-chordline-community-whatsnew-hero {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+    color: var(--text-default, var(--text-normal));
+    font-size: 15px;
+}
+
+.vc-chordline-community-whatsnew-hero img {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px -6px #8b5cf6;
+}
+
+.vc-chordline-community-changes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-default, var(--text-normal));
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.vc-chordline-community-changes li::marker {
+    color: #8b5cf6;
+}
+
+.vc-chordline-community-profile-preview {
+    position: relative;
+    max-width: 420px;
+    padding-bottom: 46px;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.vc-chordline-community-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: 5 / 2;
+    border: none;
+    background: rgb(0 0 0 / 25%) center / cover no-repeat;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.vc-chordline-community-banner:hover {
+    filter: brightness(1.1);
+}
+
+.vc-chordline-community-avatar {
+    position: absolute;
+    left: 16px;
+    bottom: 10px;
+    width: 64px;
+    height: 64px;
+    border: 5px solid rgb(0 0 0 / 35%);
+    border-radius: 50%;
+}
+
+.vc-chordline-community-preview-name {
+    position: absolute;
+    left: 96px;
+    bottom: 12px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgb(0 0 0 / 50%);
+}
+
+.vc-chordline-community-color {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-default, var(--text-normal));
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.vc-chordline-community-color input {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+}

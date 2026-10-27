@@ -1,0 +1,87 @@
+/* Chordline's look for its own settings pages: purple-to-cyan accents on top of Discord's styles */
+
+.vc-switch-checked {
+    background: linear-gradient(90deg, #8b5cf6, #22d3ee);
+}
+
+.vc-addon-card {
+    border-radius: 12px;
+}
+
+.vc-addon-card:hover {
+    border-color: #8b5cf680;
+    box-shadow: 0 6px 22px -10px #8b5cf6, var(--elevation-high);
+}
+
+.vc-settings-quickActions-pill {
+    border-radius: 10px;
+}
+
+.vc-settings-quickActions-pill:hover {
+    box-shadow: inset 0 0 0 1px #8b5cf680;
+}
+
+.vc-settings-quickActions-img {
+    color: #a78bfa;
+}
+
+/* Header at the top of the Chordline settings page */
+
+.vc-chordline-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 20px;
+    padding: 22px;
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 12% 30%, #8b5cf659 0%, transparent 55%),
+        radial-gradient(circle at 95% 110%, #22d3ee40 0%, transparent 50%),
+        #17142a;
+    border: 1px solid #8b5cf640;
+    overflow: hidden;
+}
+
+.vc-chordline-hero-logo {
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    box-shadow: 0 10px 30px -8px #8b5cf6;
+}
+
+.vc-chordline-hero-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-chordline-hero-title {
+    color: #fff;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.vc-chordline-hero-subtitle {
+    margin-top: 2px;
+    color: #c4bde6;
+    font-size: 14px;
+}
+
+.vc-chordline-hero-pill {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 2px 9px;
+    border-radius: 10px;
+    background: #ffffff14;
+    color: #d9d4f5;
+    font-family: var(--font-code);
+    font-size: 12px;
+}
+
+.vc-chordline-hero-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}

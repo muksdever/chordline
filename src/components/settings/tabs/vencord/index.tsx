@@ -21,11 +21,13 @@ import { useSettings } from "@api/Settings";
 import { Divider } from "@components/Divider";
 import { FormSwitch } from "@components/FormSwitch";
 import { FolderIcon, GithubIcon, LogIcon, PaintbrushIcon, RestartIcon } from "@components/Icons";
+import { ChordlineHero } from "@components/settings/ChordlineHero";
 import { QuickAction, QuickActionCard } from "@components/settings/QuickAction";
 import { SpecialCard } from "@components/settings/SpecialCard";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
 import { openContributorModal } from "@components/settings/tabs/plugins/ContributorModal";
 import { openPluginModal } from "@components/settings/tabs/plugins/PluginModal";
+import { ProfileExtrasSection } from "@plugins/_core/chordlineCommunity/windows";
 import { StaffStatusSection } from "@plugins/_core/chordlineStaff/windows";
 import NoTrack from "@plugins/_core/noTrack";
 import SettingsPlugin from "@plugins/_core/settings";
@@ -138,6 +140,8 @@ function VencordSettings() {
 
     return (
         <SettingsTab>
+            <ChordlineHero />
+
             {isPluginDev(user?.id) && (
                 <SpecialCard
                     title="Contributions"
@@ -214,6 +218,13 @@ function VencordSettings() {
             <section className={Margins.top16}>
                 <Forms.FormTitle tag="h5">Chordline Staff</Forms.FormTitle>
                 <StaffStatusSection />
+            </section>
+
+            <Divider />
+
+            <section className={Margins.top16}>
+                <Forms.FormTitle tag="h5">Chordline Profile</Forms.FormTitle>
+                <ProfileExtrasSection />
             </section>
         </SettingsTab>
     );

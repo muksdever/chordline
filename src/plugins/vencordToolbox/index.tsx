@@ -20,6 +20,7 @@ import "./styles.css";
 
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { ChordlineIcon } from "@components/Icons";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findComponentByCodeLazy } from "@webpack";
@@ -39,14 +40,16 @@ export const settings = definePluginSettings({
 });
 
 function Icon({ isShown }: { isShown: boolean; }) {
-    return (
-        <svg viewBox="0 0 27 27" width={18} height={18} className="vc-toolbox-icon">
-            {isShown
-                ? <path fill="currentColor" d="M9 0h1v1h1v2h1v2h3V3h1V1h1V0h1v2h1v2h1v7h-1v-1h-3V9h1V6h-1v4h-3v1h1v-1h2v1h3v1h-1v1h-3v2h1v1h1v1h1v3h-1v4h-2v-1h-1v-4h-1v4h-1v1h-2v-4H9v-3h1v-1h1v-1h1v-2H9v-1H8v-1h3V6h-1v3h1v1H8v1H7V4h1V2h1M5 19h2v1h1v1h1v3H4v-1h2v-1H4v-2h1m15-1h2v1h1v2h-2v1h2v1h-5v-3h1v-1h1m4 3h4v1h-4" />
-                : <path fill="currentColor" d="M0 0h7v1H6v1H5v1H4v1H3v1H2v1h5v1H0V6h1V5h1V4h1V3h1V2h1V1H0m13 2h5v1h-1v1h-1v1h-1v1h3v1h-5V7h1V6h1V5h1V4h-3m8 5h1v5h1v-1h1v1h-1v1h1v-1h1v1h-1v3h-1v1h-2v1h-1v1h1v-1h2v-1h1v2h-1v1h-2v1h-1v-1h-1v1h-6v-1h-1v-1h-1v-2h1v1h2v1h3v1h1v-1h-1v-1h-3v-1h-4v-4h1v-2h1v-1h1v-1h1v2h1v1h1v-1h1v1h-1v1h2v-2h1v-2h1v-1h1M8 14h2v1H9v4h1v2h1v1h1v1h1v1h4v1h-6v-1H5v-1H4v-5h1v-1h1v-2h2m17 3h1v3h-1v1h-1v1h-1v2h-2v-2h2v-1h1v-1h1m1 0h1v3h-1v1h-2v-1h1v-1h1" />
-            }
-        </svg>
-    );
+    // Chordline logo; filled in while the toolbox is open
+    return isShown
+        ? (
+            <svg viewBox="0 0 24 24" width={20} height={20} className="vc-toolbox-icon">
+                <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="currentColor" />
+                <path d="M5.5 13.5C7.6 13.5 8.2 8.3 10.3 8.3S13.2 15.7 15.3 15.7 17.3 10.5 18.5 10.5" fill="none" stroke="var(--background-base-lower, #000)" strokeWidth="2.2" strokeLinecap="round" />
+                <circle cx="18.5" cy="10.5" r="1.7" fill="var(--background-base-lower, #000)" />
+            </svg>
+        )
+        : <ChordlineIcon width={20} height={20} className="vc-toolbox-icon" />;
 }
 
 function VencordPopoutButton() {

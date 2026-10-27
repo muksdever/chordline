@@ -470,6 +470,22 @@ export function PlaceholderIcon(props: IconProps) {
     );
 }
 
+/** Chordline's logo as a single-color icon: three strings with a wave and a note-like dot */
+export function ChordlineIcon(props: IconProps) {
+    const color = props.fill || "currentColor";
+    return (
+        <Icon
+            {...props}
+            viewBox="0 0 24 24"
+        >
+            <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="none" stroke={color} strokeWidth="1.8" />
+            <path d="M5.5 8h13M5.5 12h13M5.5 16h13" stroke={color} strokeOpacity=".35" strokeWidth="1" strokeLinecap="round" />
+            <path d="M5.5 13.5C7.6 13.5 8.2 8.3 10.3 8.3S13.2 15.7 15.3 15.7 17.3 10.5 18.5 10.5" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
+            <circle cx="18.5" cy="10.5" r="1.7" fill={color} />
+        </Icon>
+    );
+}
+
 export function MainSettingsIcon(props: IconProps) {
     return (
         <Icon
