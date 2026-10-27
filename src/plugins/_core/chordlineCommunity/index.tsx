@@ -4,10 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { addProfileBadge, BadgePosition, ProfileBadge, removeProfileBadge } from "@api/Badges";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { CHORDLINE_LOGO_SVG, svgToDataUrl } from "@shared/chordlineLogo";
 import { isSupabaseConfigured } from "@utils/chordlineSupabase";
 import definePlugin, { OptionType } from "@utils/types";
 import { findStoreLazy } from "@webpack";
@@ -54,14 +52,6 @@ function Mark({ userId }: { userId?: string; }) {
 }
 const SafeMark = ErrorBoundary.wrap(Mark, { noop: true });
 
-const UsesChordlineBadge: ProfileBadge = {
-    id: "chordline_uses",
-    description: "Uses Chordline",
-    iconSrc: svgToDataUrl(CHORDLINE_LOGO_SVG),
-    position: BadgePosition.END,
-    props: { style: { borderRadius: "5px", transform: "scale(0.9)" } },
-    shouldShow: ({ userId }) => settings.store.showChordlineIcons && usesChordline(userId)
-};
 
 async function refreshAnnouncements() {
     await loadAnnouncements();
@@ -151,7 +141,6 @@ export default definePlugin({
     },
 
     start() {
-        addProfileBadge(UsesChordlineBadge);
         startUp();
 
         timers.push(
@@ -162,7 +151,6 @@ export default definePlugin({
     },
 
     stop() {
-        removeProfileBadge(UsesChordlineBadge);
         timers.splice(0).forEach(clearInterval);
         window.removeEventListener("focus", onFocus);
     }
