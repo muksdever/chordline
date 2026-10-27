@@ -21,36 +21,39 @@ const emitChange = () => listeners.forEach(l => l());
 
 // --- "Uses Chordline" mark ---
 // Chordline adds a few invisible characters ("3y3" tag characters, like FakeProfileThemes uses) to the end of your
-// About Me. Discord doesn't display them, so only other Chordline users can tell. Nothing is stored in the database.
+// pronouns. Discord doesn't display them, so only other Chordline users can tell. Nothing is stored in the database.
 
 /** Invisible version of "~cl" */
 const CHORDLINE_MARK = String.fromCodePoint(0xe007e, 0xe0063, 0xe006c);
-const BIO_MAX_LENGTH = 190;
+const PRONOUNS_MAX_LENGTH = 40;
 
-export const hasChordlineMark = (bio: string | null | undefined) => !!bio?.includes(CHORDLINE_MARK);
+export const hasChordlineMark = (text: string | null | undefined) => !!text?.includes(CHORDLINE_MARK);
 
-/** Adds or removes the invisible mark in the logged-in user's About Me */
+/** Adds or removes the invisible mark in the logged-in user's pronouns */
 export async function syncMyChordlineMark(enabled: boolean) {
     const me = UserStore.getCurrentUser();
     if (!me) return;
 
     try {
         const { body } = await RestAPI.get({ url: `/users/${me.id}/profile` });
+        const pronouns: string = body?.user_profile?.pronouns ?? "";
         const bio: string = body?.user_profile?.bio ?? "";
-        const has = hasChordlineMark(bio);
+        const changes: Record<string, string> = {};
 
-        let next: string | null = null;
-        if (enabled && !has) {
-            // Don't push the About Me over Discord's length limit
-            if (bio.length + CHORDLINE_MARK.length > BIO_MAX_LENGTH) return;
-            next = bio + CHORDLINE_MARK;
-        } else if (!enabled && has) {
-            next = bio.replaceAll(CHORDLINE_MARK, "");
+        if (enabled && !hasChordlineMark(pronouns)) {
+            // Don't push the pronouns over Discord's length limit
+            if (pronouns.length + CHORDLINE_MARK.length <= PRONOUNS_MAX_LENGTH)
+                changes.pronouns = pronouns + CHORDLINE_MARK;
+        } else if (!enabled && hasChordlineMark(pronouns)) {
+            changes.pronouns = pronouns.replaceAll(CHORDLINE_MARK, "");
         }
 
-        if (next != null) await RestAPI.patch({ url: "/users/@me/profile", body: { bio: next } });
+        // Earlier versions put the mark in the About Me; clean that up
+        if (hasChordlineMark(bio)) changes.bio = bio.replaceAll(CHORDLINE_MARK, "");
+
+        if (Object.keys(changes).length) await RestAPI.patch({ url: "/users/@me/profile", body: changes });
     } catch (e) {
-        logger.warn("Couldn't update the Chordline mark in About Me", e);
+        logger.warn("Couldn't update the Chordline mark in pronouns", e);
     }
 }
 

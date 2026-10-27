@@ -18,7 +18,7 @@ import { ChordlineMark, notifyNewAnnouncement, openAnnouncements, showWhatsNewIf
 export const settings = definePluginSettings({
     showThatIUseChordline: {
         type: OptionType.BOOLEAN,
-        description: "Add an invisible mark to your About Me so other Chordline users see the Chordline icon next to your name (nobody else can see it)",
+        description: "Add an invisible mark to your pronouns so other Chordline users see the Chordline icon next to your name (nobody else can see it)",
         default: true,
         onChange: (show: boolean) => syncMyChordlineMark(show)
     },
@@ -38,13 +38,13 @@ const MINUTE = 60 * 1000;
 const timers: ReturnType<typeof setInterval>[] = [];
 let lastFocusRefresh = 0;
 let whatsNewChecked = false;
-/** Which account we last added the About Me mark for, so it's done once per account per session */
+/** Which account we last added the pronouns mark for, so it's done once per account per session */
 let markSyncedFor: string | null = null;
 
 const UserProfileStore = findStoreLazy("UserProfileStore");
 
-/** Whether this person's About Me has the invisible Chordline mark (only known once Discord has loaded their profile) */
-const usesChordline = (userId: string) => hasChordlineMark(UserProfileStore.getUserProfile(userId)?.bio);
+/** Whether this person's pronouns have the invisible Chordline mark (only known once Discord has loaded their profile) */
+const usesChordline = (userId: string) => hasChordlineMark(UserProfileStore.getUserProfile(userId)?.pronouns);
 
 function Mark({ userId }: { userId?: string; }) {
     const uses = useStateFromStores([UserProfileStore], () => !!userId && usesChordline(userId));
