@@ -82,6 +82,8 @@ export default definePlugin({
     description: "Adds a button to the titlebar that houses Chordline quick actions",
     tags: ["Utility", "Developers"],
     authors: [Devs.Ven, Devs.AutumnVN],
+    // Chordline's staff and badge tools live in the toolbox, so it's always on
+    required: true,
 
     settings,
 
