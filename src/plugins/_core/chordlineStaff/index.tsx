@@ -18,9 +18,23 @@ import { openBansModal, openReportModal, openReportsModal, openStaffModal } from
 
 const logger = new Logger("ChordlineStaff", "#e5c890");
 
-const BAN_CHECK_INTERVAL = 5 * 60 * 1000;
-let banCheckTimer: ReturnType<typeof setInterval> | undefined;
+/** How often to re-check this user's ban and staff role, so bans and role changes apply within a minute */
+const REFRESH_INTERVAL = 60 * 1000;
+let refreshTimer: ReturnType<typeof setInterval> | undefined;
 let checkingBan = false;
+
+let lastRefresh = 0;
+
+function refreshAll() {
+    lastRefresh = Date.now();
+    refreshStaffIdentity();
+    checkBan();
+}
+
+/** Coming back to Discord re-checks right away, unless it was just checked */
+function onFocus() {
+    if (Date.now() - lastRefresh > 15_000) refreshAll();
+}
 
 async function checkBan() {
     const userId = UserStore.getCurrentUser()?.id;
@@ -95,8 +109,7 @@ export default definePlugin({
     flux: {
         // Also fires when switching Discord accounts
         CONNECTION_OPEN() {
-            refreshStaffIdentity();
-            checkBan();
+            refreshAll();
         }
     },
 
@@ -107,14 +120,16 @@ export default definePlugin({
     },
 
     start() {
-        refreshStaffIdentity();
-        checkBan();
-        clearInterval(banCheckTimer);
-        banCheckTimer = setInterval(checkBan, BAN_CHECK_INTERVAL);
+        refreshAll();
+        clearInterval(refreshTimer);
+        refreshTimer = setInterval(refreshAll, REFRESH_INTERVAL);
+        // Also check right away when coming back to Discord
+        window.addEventListener("focus", onFocus);
     },
 
     stop() {
-        clearInterval(banCheckTimer);
+        clearInterval(refreshTimer);
+        window.removeEventListener("focus", onFocus);
         hideBanScreen();
     }
 });

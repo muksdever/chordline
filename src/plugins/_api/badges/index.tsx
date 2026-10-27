@@ -108,6 +108,16 @@ const UserContextMenuPatch: NavContextMenuPatchCallback = (children, { user }: {
 };
 
 let intervalId: any;
+let chordlineIntervalId: any;
+
+const CHORDLINE_BADGE_REFRESH = 60 * 1000;
+let lastChordlineRefresh = 0;
+function refreshChordlineBadges() {
+    lastChordlineRefresh = Date.now();
+    return loadChordlineBadges();
+}
+/** Coming back to Discord re-checks right away, unless it was just checked */
+const onFocus = () => Date.now() - lastChordlineRefresh > 15_000 && refreshChordlineBadges();
 
 function BadgeContextMenu({ badge }: { badge: Omit<ProfileBadge, "id"> & BadgeUserArgs; }) {
     return (
@@ -238,10 +248,17 @@ export default definePlugin({
 
         clearInterval(intervalId);
         intervalId = setInterval(loadBadges, 1000 * 60 * 30); // 30 minutes
+
+        // Chordline badges change more often (new badges, hiding), so check those every minute and when Discord is focused
+        clearInterval(chordlineIntervalId);
+        chordlineIntervalId = setInterval(refreshChordlineBadges, CHORDLINE_BADGE_REFRESH);
+        window.addEventListener("focus", onFocus);
     },
 
     async stop() {
         clearInterval(intervalId);
+        clearInterval(chordlineIntervalId);
+        window.removeEventListener("focus", onFocus);
         removeProfileBadge(ChordlineBadges);
         unhookBadgeDirectory();
     },

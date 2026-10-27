@@ -255,6 +255,8 @@ function BanModal({ userId: initialUser, reason: initialReason, reportId, onDone
 const openBanModal = (options: { userId?: string; reason?: string; reportId?: string; onDone?(): void; }) =>
     openModal(props => <BanModal {...props} {...options} />);
 
+const LIST_REFRESH_INTERVAL = 15 * 1000;
+
 /** Loads a list from the database, with a reload function */
 function useList<T>(load: () => Promise<T[]>) {
     const [items, setItems] = useState<T[] | null>(null);
@@ -265,7 +267,13 @@ function useList<T>(load: () => Promise<T[]>) {
             .then(list => { setItems(list ?? []); setError(null); })
             .catch(e => setError(e instanceof Error ? e.message : String(e)));
     };
-    useEffect(reload, []);
+
+    // Load now, then keep the list up to date while the window is open
+    useEffect(() => {
+        reload();
+        const timer = setInterval(reload, LIST_REFRESH_INTERVAL);
+        return () => clearInterval(timer);
+    }, []);
 
     return { items, setItems, error, reload };
 }

@@ -47,12 +47,17 @@ export async function refreshStaffIdentity() {
     const userId = UserStore.getCurrentUser()?.id;
     if (!userId || !isSupabaseConfigured()) return;
 
+    let role: StaffRole | null;
     try {
-        const role = await publicRpc<StaffRole | null>("staff_role", { caller_id: userId });
-        me = { userId, role };
+        role = await publicRpc<StaffRole | null>("staff_role", { caller_id: userId });
     } catch (e) {
+        // Keep the role we had if the check just failed (e.g. no internet)
         logger.warn("Couldn't check staff role", e);
-        me = { userId, role: null };
+        if (me?.userId === userId) return;
+        role = null;
     }
+
+    if (me?.userId === userId && me.role === role) return;
+    me = { userId, role };
     listeners.forEach(l => l());
 }

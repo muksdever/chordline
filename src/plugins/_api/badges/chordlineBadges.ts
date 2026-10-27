@@ -72,11 +72,15 @@ export const getHeldBadges = (userId: string) => badgesByUser.get(userId) ?? [];
 /** The badges that should show on this user's profile, in order */
 export const getUserChordlineBadges = (userId: string) => getHeldBadges(userId).filter(h => !h.hidden).map(h => h.badge);
 
+/** What was last loaded, so polling only re-renders when something actually changed */
+let lastSnapshot = "";
+
 export async function loadChordlineBadges() {
     if (!isBadgeBackendConfigured()) return;
 
+    let newBadges: ChordlineBadge[], newHolders: BadgeHolder[];
     try {
-        [badges, holders] = await Promise.all([
+        [newBadges, newHolders] = await Promise.all([
             request<ChordlineBadge[]>("/rest/v1/badges?select=id,name,icon_url,rarity,created_at&order=created_at.asc"),
             request<BadgeHolder[]>("/rest/v1/badge_holders?select=badge_id,user_id,hidden,position,created_at&order=created_at.asc")
         ]);
@@ -85,6 +89,12 @@ export async function loadChordlineBadges() {
         return;
     }
 
+    const snapshot = JSON.stringify([newBadges, newHolders]);
+    if (snapshot === lastSnapshot) return;
+    lastSnapshot = snapshot;
+
+    badges = newBadges;
+    holders = newHolders;
     rebuildBadgesByUser();
 }
 
